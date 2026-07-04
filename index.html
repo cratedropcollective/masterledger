@@ -370,6 +370,7 @@ let ui = {
   basket:           [],
   hiddenCols:       new Set(['float']),   /* Float Generated hidden by default; user can re-enable via column picker */
   sortClients:      'alpha',   /* 'alpha' | 'date' */
+  itemTabSort:      'date',    /* 'date' | 'qtyDesc' — order of client rows within an Item tab */
   collapsedClients: new Set(),
   showColPicker:    false
 };
@@ -436,10 +437,17 @@ function clientSummary(name) {
   return {paid,val,net,fc,qtyOrd,qtyAlloc,srpVal,isRefund:net>=0,isZero:Math.abs(net)<0.005};
 }
 function itemOrders(itemId) { return state.orders.filter(o=>o.itemId===itemId).sort((a,b)=>a.createdAt-b.createdAt); }
+/* Same rows as itemOrders, but optionally sorted largest-to-smallest by Qty Ordered for display in the Item tab */
+function itemOrdersSorted(itemId) {
+  const orders=itemOrders(itemId);
+  if(ui.itemTabSort==='qtyDesc') return orders.slice().sort((a,b)=>(Number(b.qtyOrdered)||0)-(Number(a.qtyOrdered)||0));
+  return orders;
+}
 function itemSummary(itemId) {
-  const orders=itemOrders(itemId); let qtyOrd=0,qtyAlloc=0,paid=0,fc=0;
-  orders.forEach(o=>{ const f=orderFin(o); qtyOrd+=Number(o.qtyOrdered)||0; qtyAlloc+=f.aq; paid+=f.paid; fc+=f.fc; });
-  return {qtyOrd,qtyAlloc,paid,fc,count:orders.length};
+  const orders=itemOrders(itemId); let qtyOrd=0,qtyAlloc=0,paid=0,fc=0,val=0,srpVal=0;
+  orders.forEach(o=>{ const f=orderFin(o); qtyOrd+=Number(o.qtyOrdered)||0; qtyAlloc+=f.aq; paid+=f.paid; fc+=f.fc; val+=f.valueAlloc; srpVal+=f.srpValueAlloc; });
+  const net=paid-val;
+  return {qtyOrd,qtyAlloc,paid,fc,val,srpVal,net,isRefund:net>=0,isZero:Math.abs(net)<0.005,count:orders.length};
 }
 /* Splits total ordered qty for an item into client-facing vs store-inventory portions */
 function itemOrderedBreakdown(itemId) {
@@ -665,6 +673,7 @@ function renderLedgerToolbar() {
       <button type="button" class="lt-btn${ui.sortClients==='alpha'?' active':''}" data-a="toggle-sort" title="Toggle sort order">⇅ ${sortLabel}</button>
       <div class="lt-divider"></div>
       <button type="button" class="lt-btn" data-a="export-excel" title="Export to Excel (.xlsx)">📊 Export Excel</button>
+      <button type="button" class="lt-btn" data-a="download-all-receipts" title="Download a receipt PNG for every client, one at a time">⬇ Download All Receipts</button>
     </div>
     <div class="lt-right">
       <div class="col-picker-wrap">
@@ -728,8 +737,6 @@ function renderClientTab() {
       const netStr=summary.isZero?'Settled':summary.isRefund?`Refund ${php(summary.net)}`:`Balance ${php(Math.abs(summary.net))}`;
       const netCls=summary.isZero?'':(summary.isRefund?'kpi-pos':'kpi-neg');
       collapsedInfo=`<span class="c-collapsed-summary">
-        <span>${summary.qtyOrd} ordered</span>
-        <span>${summary.qtyAlloc} allocated</span>
         <span>${php(summary.paid)} paid</span>
         <span class="${netCls}">${netStr}</span>
       </span>`;
@@ -803,7 +810,7 @@ function renderClientTab() {
       else subPill=`<span class="pill pill-bal">Total Balance: ${php(Math.abs(summary.net))}</span>`;
       const subMap={
         item:`<td><span class="sub-label">Subtotal — ${esc(name)}</span></td>`, eta:`<td></td>`,
-        qty:`<td class="td-r">${summary.qtyOrd}</td>`, alloc:`<td class="td-r">${summary.qtyAlloc}</td>`,
+        qty:`<td></td>`, alloc:`<td></td>`,
         paid:`<td class="td-r">${php(summary.paid)}</td>`, amtAlloc:`<td class="td-r td-dim">${php(summary.srpVal)}</td>`,
         float:`<td class="td-r ${fcSubCls}">${php(summary.fc)}</td>`,
         refund:`<td class="td-r">${subPill}</td>`, act:`<td></td>`
@@ -819,7 +826,7 @@ function renderClientTab() {
 function renderItemTab(itemId) {
   const area=$e('tabContent'), item=getItem(itemId);
   if(!item){area.innerHTML='<div class="empty"><strong>Item not found.</strong></div>';return;}
-  const orders=itemOrders(itemId), alloc=Number(item.allocationPct)??100;
+  const orders=itemOrdersSorted(itemId), alloc=Number(item.allocationPct)??100;
   const totals=itemSummary(itemId), allocColor=alloc<100?'var(--gold)':'var(--green)';
   let html=`<div class="item-tab-info">
     <div>
@@ -836,16 +843,27 @@ function renderItemTab(itemId) {
   </div>`;
   if(!orders.length){html+=`<div class="empty" style="margin-top:14px"><div class="empty-ico">📋</div><strong>No orders for this item yet</strong><span>Orders created for this item will appear here.</span></div>`;$e('tabContent').innerHTML=html;return;}
 
-  html+=`<div class="tbl-wrap" style="margin-top:14px"><table class="item-tbl">
+  const sortIsQty=ui.itemTabSort==='qtyDesc';
+  html+=`<div style="display:flex;justify-content:flex-end;margin-top:14px">
+    <button type="button" class="lt-btn${sortIsQty?' active':''}" data-a="toggle-item-sort" title="Sort clients by quantity ordered">⇅ ${sortIsQty?'Qty: High to Low':'Order Added'}</button>
+  </div>`;
+
+  html+=`<div class="tbl-wrap" style="margin-top:10px"><table class="item-tbl">
     <thead><tr>
       <th>Client Name</th><th class="r">Qty Ordered</th><th class="c" style="min-width:160px">Qty Allocated</th>
-      <th class="r">Amount Paid (DP)</th><th class="r">Float Generated</th><th class="r">Actions</th>
+      <th class="r">Amount Paid (DP)</th><th class="r">Amount Allocated</th><th class="r" style="min-width:150px">Refund / Balance</th>
+      <th class="r">Float Generated</th><th class="r">Actions</th>
     </tr></thead><tbody>`;
   orders.forEach(order=>{
     const fin=orderFin(order), raw=allocQtyRaw(order);
     const siBadge=order.storeInventory?`<span class="si-badge">Store</span>`:'';
     const fcCls=fin.fc>0.005?'kpi-pos':fin.fc<-0.005?'kpi-neg':'td-dim';
     const isEdit=ui.editOrderId===order.id;
+
+    let refCell;
+    if(fin.isZero) refCell=`<span class="pill pill-ok">Settled</span>`;
+    else if(fin.isRefund) refCell=`<span class="pill pill-ref">Refund ${php(fin.diff)}</span>`;
+    else refCell=`<span class="pill pill-bal">Balance ${php(Math.abs(fin.diff))}</span>`;
 
     /* Same interactive override pattern used on the Client Overview tab — same order.id,
        same ov-toggle / ov-qty actions, so changes here are automatically reflected there too
@@ -874,6 +892,8 @@ function renderItemTab(itemId) {
         <td class="td-r"><input id="eq_${esc(order.id)}" class="ci num sm" type="number" value="${esc(order.qtyOrdered)}" min="1"></td>
         <td class="td-c">${allocInner}</td>
         <td class="td-r"><input id="ep_${esc(order.id)}" class="ci num sm" type="number" value="${esc(order.amountPaid)}" min="0" step="0.01"></td>
+        <td class="td-r mono td-dim">${php(fin.srpValueAlloc)}</td>
+        <td class="td-r">${refCell}</td>
         <td class="td-r mono ${fcCls}">${php(fin.fc)}</td>
         <td class="td-r" style="white-space:nowrap"><button type="button" class="icon-btn save" data-a="save-order" data-id="${esc(order.id)}">✓</button> <button type="button" class="icon-btn" data-a="cancel-order">✕</button></td>
       </tr>`;
@@ -883,6 +903,8 @@ function renderItemTab(itemId) {
         <td class="td-r mono">${esc(order.qtyOrdered)}</td>
         <td class="td-c">${allocInner}</td>
         <td class="td-r mono">${php(order.amountPaid)}</td>
+        <td class="td-r mono td-dim">${php(fin.srpValueAlloc)}</td>
+        <td class="td-r">${refCell}</td>
         <td class="td-r mono ${fcCls}">${php(fin.fc)}</td>
         <td class="td-r" style="white-space:nowrap"><button type="button" class="icon-btn" data-a="edit-order" data-id="${esc(order.id)}" title="Edit">✏</button> <button type="button" class="icon-btn del" data-a="del-order" data-id="${esc(order.id)}" title="Delete">✕</button></td>
       </tr>`;
@@ -899,6 +921,11 @@ function renderItemTab(itemId) {
   else if(remaining<0) remainingBadge=`<span class="brk-delta brk-delta-neg">${remaining} over</span>`;
   else remainingBadge=`<span class="brk-delta brk-delta-zero">fully allocated</span>`;
 
+  let subRefPill;
+  if(totals.isZero) subRefPill=`<span class="pill pill-ok">Settled</span>`;
+  else if(totals.isRefund) subRefPill=`<span class="pill pill-ref">Total Refund: ${php(totals.net)}</span>`;
+  else subRefPill=`<span class="pill pill-bal">Total Balance: ${php(Math.abs(totals.net))}</span>`;
+
   html+=`<tr class="item-sub">
     <td><span class="sub-label">Totals — ${esc(item.name)}</span></td>
     <td class="td-r">${totals.qtyOrd}</td>
@@ -906,12 +933,15 @@ function renderItemTab(itemId) {
       <div class="mono td-bold">${totals.qtyAlloc}</div>
       <div class="brk-unit" style="margin-top:3px">Actual: <strong class="mono" style="color:var(--text)">${actualAlloc}</strong> ${remainingBadge}</div>
     </td>
-    <td class="td-r">${php(totals.paid)}</td><td class="td-r ${fcTotCls}">${php(totals.fc)}</td><td></td>
+    <td class="td-r">${php(totals.paid)}</td>
+    <td class="td-r td-dim">${php(totals.srpVal)}</td>
+    <td class="td-r">${subRefPill}</td>
+    <td class="td-r ${fcTotCls}">${php(totals.fc)}</td><td></td>
   </tr></tbody></table></div>`;
   area.innerHTML=html;
 }
 
-function renderAll(){renderDash();renderItems();syncOrderForm();renderLedger();}
+function renderAll(){renderDash();renderItems();syncOrderForm();renderLedger();renderBasket();}
 
 /* ── ACTIONS: ITEMS ─────────────────────────────── */
 $e('itemForm').addEventListener('submit',function(e){
@@ -1055,23 +1085,53 @@ function renderBasket(){
 
 /* ── EXCEL EXPORT ───────────────────────────────── */
 function sanitizeSheetName(name){return name.slice(0,31).replace(/[\[\]:*?/\\]/g,'_');}
+/* Builds a ready-to-copy-paste message summarizing one client's allocation, payment, and
+   refund/balance status. Used ONLY in the Excel export's Client Message column — never
+   shown anywhere in the live UI. Deleted-item orders are silently omitted from the itemized
+   list (matching the receipt generator's behavior) since this text is meant to be sent as-is. */
+function buildClientMessageText(name) {
+  const orders=ordersForClient(name).filter(o=>getItem(o.itemId));
+  const summary=clientSummary(name);
+  const lines=[`Hi ${name}! Here's your pre-order allocation summary:`,''];
+  orders.forEach(order=>{
+    const item=getItem(order.itemId), fin=orderFin(order);
+    lines.push(`- ${item.name}: Ordered ${order.qtyOrdered}, Allocated ${fin.aq} (${php(item.srp)} each)`);
+  });
+  lines.push('',`Total downpayment received: ${php(summary.paid)}`,`Total value of allocated items: ${php(summary.val)}`,'');
+  if(summary.isZero) lines.push('Your account is fully settled — no refund or balance due.');
+  else if(summary.isRefund) lines.push(`You have a REFUND of ${php(summary.net)} coming your way!`);
+  else lines.push(`You have a remaining BALANCE of ${php(Math.abs(summary.net))} to settle upon pickup.`);
+  lines.push('','Thank you for your pre-order!');
+  return lines.join('\n');
+}
+
 function exportToExcel(){
   if(typeof XLSX==='undefined'){toast('Excel library not loaded — requires internet connection.','err');return;}
   if(!state.orders.length){toast('No orders to export.','err');return;}
   const wb=XLSX.utils.book_new();
-  /* Sheet 1: Client Overview — column order mirrors the on-screen ledger */
-  const clientData=[['Client','Item / SKU','ETA','Qty Ordered','Qty Allocated','Raw Allocation','Amount Paid (DP)','Amount Allocated (SRP)','Float Generated','Refund / Balance']];
+  /* Sheet 1: Client Overview — column order mirrors the on-screen ledger.
+     Leads with a quick allocation-% reference per item (req 5); ends with a ready-to-send
+     message column per client, populated only on subtotal rows (req 6, Excel-only — never
+     shown in the live UI). Qty Ordered/Allocated are left blank on subtotal rows since
+     summing quantities across different SKUs isn't meaningful (matches the UI, req 4). */
+  const clientData=[
+    ['Allocation Percentages (as of export)'],
+    ['Item / SKU','Allocation %'],
+  ];
+  state.items.forEach(item=>{ clientData.push([item.name,item.allocationPct]); });
+  clientData.push([]);
+  clientData.push(['Client','Item / SKU','ETA','Qty Ordered','Qty Allocated','Raw Allocation','Amount Paid (DP)','Amount Allocated (SRP)','Float Generated','Refund / Balance','Client Message (Copy & Send)']);
   clientNames().forEach(name=>{
     const orders=ordersForClient(name), summary=clientSummary(name);
     orders.forEach(order=>{
       const item=getItem(order.itemId), fin=orderFin(order), raw=allocQtyRaw(order);
-      clientData.push([name,item?item.name:'DELETED ITEM',item?item.eta||'':'',order.qtyOrdered,fin.aq,parseFloat(raw.toFixed(4)),order.amountPaid,fin.srpValueAlloc,fin.fc,fin.isZero?'Settled':fin.isRefund?`Refund ₱${Math.abs(fin.diff).toFixed(2)}`:`Balance ₱${Math.abs(fin.diff).toFixed(2)}`]);
+      clientData.push([name,item?item.name:'DELETED ITEM',item?item.eta||'':'',order.qtyOrdered,fin.aq,parseFloat(raw.toFixed(4)),order.amountPaid,fin.srpValueAlloc,fin.fc,fin.isZero?'Settled':fin.isRefund?`Refund ₱${Math.abs(fin.diff).toFixed(2)}`:`Balance ₱${Math.abs(fin.diff).toFixed(2)}`,'']);
     });
-    clientData.push([`SUBTOTAL — ${name}`,'','',summary.qtyOrd,summary.qtyAlloc,'',summary.paid,summary.srpVal,summary.fc,summary.isZero?'Settled':summary.isRefund?`Refund ₱${summary.net.toFixed(2)}`:`Balance ₱${Math.abs(summary.net).toFixed(2)}`]);
+    clientData.push([`SUBTOTAL — ${name}`,'','','','','',summary.paid,summary.srpVal,summary.fc,summary.isZero?'Settled':summary.isRefund?`Refund ₱${summary.net.toFixed(2)}`:`Balance ₱${Math.abs(summary.net).toFixed(2)}`,buildClientMessageText(name)]);
     clientData.push([]);
   });
   const wsClient=XLSX.utils.aoa_to_sheet(clientData);
-  wsClient['!cols']=[{wch:22},{wch:30},{wch:10},{wch:12},{wch:13},{wch:15},{wch:18},{wch:19},{wch:16},{wch:22}];
+  wsClient['!cols']=[{wch:28},{wch:30},{wch:10},{wch:12},{wch:13},{wch:15},{wch:18},{wch:19},{wch:16},{wch:22},{wch:70}];
   XLSX.utils.book_append_sheet(wb,wsClient,'Client Overview');
 
   /* Sheet 2: Allocation Breakdown — one row per item, mirrors the dashboard panel.
@@ -1086,12 +1146,15 @@ function exportToExcel(){
   wsBreakdown['!cols']=[{wch:30},{wch:10},{wch:13},{wch:13},{wch:13},{wch:12},{wch:24},{wch:17},{wch:16}];
   XLSX.utils.book_append_sheet(wb,wsBreakdown,'Allocation Breakdown');
 
-  /* Per-item detail sheets */
+  /* Per-item detail sheets — column order mirrors the Item tab in the live ledger:
+     Client, Qty Ordered, Qty Allocated, Raw Allocation, Amount Paid (DP),
+     Amount Allocated, Refund / Balance, Float Generated, Store Inventory */
   state.items.forEach(item=>{
     const orders=itemOrders(item.id), totals=itemSummary(item.id);
     const calcDecimal=naturalItemAllocation(item.id), actual=getActualAllocQty(item);
     const totalOrderedForItem=itemOrderedBreakdown(item.id).totalQty;
     const deltaVsCalc=actual-Math.floor(calcDecimal), remaining=actual-totals.qtyAlloc;
+    const totalsRefundText=totals.isZero?'Settled':totals.isRefund?`Refund ₱${totals.net.toFixed(2)}`:`Balance ₱${Math.abs(totals.net).toFixed(2)}`;
     const data=[
       [`Item: ${item.name}`],
       [`ETA: ${item.eta||'—'}`,`Cost: ₱${item.costPrice}`,`SRP: ₱${item.srp}`,`Allocation: ${item.allocationPct}%`],
@@ -1099,13 +1162,17 @@ function exportToExcel(){
        `Distributor Actual: ${actual}`,
        item.actualAllocOverride?`Delta vs Calculated: ${deltaVsCalc>=0?'+':''}${deltaVsCalc}`:'(no distributor override set — using calculated figure)'],
       [],
-      ['Client','Qty Ordered','Qty Allocated','Raw Allocation','Amount Paid (DP)','Float Generated','Store Inventory']
+      ['Client','Qty Ordered','Qty Allocated','Raw Allocation','Amount Paid (DP)','Amount Allocated','Refund / Balance','Float Generated','Store Inventory']
     ];
-    orders.forEach(order=>{ const fin=orderFin(order), raw=allocQtyRaw(order); data.push([order.clientName,order.qtyOrdered,fin.aq,parseFloat(raw.toFixed(4)),order.amountPaid,fin.fc,order.storeInventory?'Yes':'No']); });
+    orders.forEach(order=>{
+      const fin=orderFin(order), raw=allocQtyRaw(order);
+      const refundText=fin.isZero?'Settled':fin.isRefund?`Refund ₱${Math.abs(fin.diff).toFixed(2)}`:`Balance ₱${Math.abs(fin.diff).toFixed(2)}`;
+      data.push([order.clientName,order.qtyOrdered,fin.aq,parseFloat(raw.toFixed(4)),order.amountPaid,fin.srpValueAlloc,refundText,fin.fc,order.storeInventory?'Yes':'No']);
+    });
     data.push([]);
-    data.push(['TOTALS',totals.qtyOrd,totals.qtyAlloc,'',totals.paid,totals.fc,'','Actual Allocated:',actual,remaining>=0?`+${remaining} left to give out`:`${remaining} over-allocated`]);
+    data.push(['TOTALS',totals.qtyOrd,totals.qtyAlloc,'',totals.paid,totals.srpVal,totalsRefundText,totals.fc,'','Actual Allocated:',actual,remaining>=0?`+${remaining} left to give out`:`${remaining} over-allocated`]);
     const ws=XLSX.utils.aoa_to_sheet(data);
-    ws['!cols']=[{wch:22},{wch:13},{wch:14},{wch:15},{wch:18},{wch:16},{wch:14},{wch:16},{wch:10},{wch:22}];
+    ws['!cols']=[{wch:22},{wch:13},{wch:14},{wch:15},{wch:18},{wch:19},{wch:22},{wch:16},{wch:14},{wch:16},{wch:10},{wch:22}];
     XLSX.utils.book_append_sheet(wb,ws,sanitizeSheetName(item.name));
   });
   XLSX.writeFile(wb,'preorder-ledger-'+new Date().toISOString().slice(0,10)+'.xlsx');
@@ -1139,6 +1206,9 @@ document.addEventListener('click',function(e){
     case 'toggle-sort':
       ui.sortClients=ui.sortClients==='alpha'?'date':'alpha';
       renderLedger(); save(); break;
+    case 'toggle-item-sort':
+      ui.itemTabSort=ui.itemTabSort==='qtyDesc'?'date':'qtyDesc';
+      renderLedger(); save(); break;
     case 'toggle-col-picker':
       ui.showColPicker=!ui.showColPicker; renderLedgerToolbar(); break;
     case 'cols-all':
@@ -1146,6 +1216,7 @@ document.addEventListener('click',function(e){
     case 'cols-essential':
       ui.hiddenCols=new Set(['eta','float','act']); ui.showColPicker=false; renderLedger(); save(); break;
     case 'export-excel':   exportToExcel(); break;
+    case 'download-all-receipts': generateAllReceipts(); break;
     case 'undo-action':
       if(_undoCb){clearTimeout(_tt);_undoCb();_undoCb=null;$e('toast').classList.remove('show');} break;
   }
@@ -1267,48 +1338,84 @@ function buildReceiptHTML(clientName, orders) {
   </div>`;
 }
 
-function generateReceipt(clientName) {
+/* Core receipt generator — returns a Promise so it can be awaited/sequenced by the batch function.
+   opts.silent suppresses the per-client toasts (used during batch generation, where the caller
+   shows one overall progress/summary toast instead of one per client). */
+function generateReceiptForClient(clientName, opts) {
+  opts = opts || {};
+  const silent = !!opts.silent;
   const orders = ordersForClient(clientName);
-  if (!orders.length) { toast('No orders found for this client.', 'err'); return; }
-  if (typeof html2canvas === 'undefined') { toast('Receipt generator failed to load — check your internet connection and try again.', 'err'); return; }
+  if (!orders.length) { if(!silent) toast('No orders found for this client.', 'err'); return Promise.resolve({success:false, reason:'no-orders'}); }
+  if (typeof html2canvas === 'undefined') { if(!silent) toast('Receipt generator failed to load — check your internet connection and try again.', 'err'); return Promise.resolve({success:false, reason:'no-lib'}); }
 
   const validOrders  = orders.filter(o => getItem(o.itemId));
   const skippedCount = orders.length - validOrders.length;
-  if (!validOrders.length) { toast('All items for this client have been deleted — nothing to generate.', 'err'); return; }
+  if (!validOrders.length) { if(!silent) toast('All items for this client have been deleted — nothing to generate.', 'err'); return Promise.resolve({success:false, reason:'no-valid-orders'}); }
 
   /* Render off-screen (not display:none, so layout/paint still happens for html2canvas) */
   const holder = document.createElement('div');
   holder.style.cssText = 'position:fixed; left:-10000px; top:0; z-index:-1;';
   holder.innerHTML = buildReceiptHTML(clientName, validOrders);
   document.body.appendChild(holder);
-  const target = holder.querySelector('#receipt-canvas');
+  const target = holder.querySelector('#receipt-canvas');   /* scoped to holder — safe even if another receipt is mid-generation elsewhere */
 
-  toast('Generating receipt…', 'ok');
+  if (!silent) toast('Generating receipt…', 'ok');
 
   /* Small delay lets the Tailwind CDN runtime inject styles for these
      dynamically-created classes before html2canvas takes the snapshot. */
-  requestAnimationFrame(() => {
-    setTimeout(() => {
-      html2canvas(target, { scale: 2, backgroundColor: '#ffffff', useCORS: true })
-        .then(canvas => {
-          const safeName = clientName.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'client';
-          const link = document.createElement('a');
-          link.download = `Receipt-${safeName}.png`;
-          link.href = canvas.toDataURL('image/png');
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          toast(skippedCount > 0 ? `Receipt downloaded (${skippedCount} deleted item${skippedCount === 1 ? '' : 's'} omitted).` : 'Receipt downloaded.', 'ok');
-        })
-        .catch(err => { toast('Could not generate receipt image: ' + err.message, 'err'); })
-        .finally(() => { document.body.removeChild(holder); });
-    }, 60);
-  });
+  return new Promise(resolve => requestAnimationFrame(resolve))
+    .then(() => new Promise(resolve => setTimeout(resolve, 60)))
+    .then(() => html2canvas(target, { scale: 2, backgroundColor: '#ffffff', useCORS: true }))
+    .then(canvas => {
+      const safeName = clientName.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'client';
+      const link = document.createElement('a');
+      link.download = `Receipt-${safeName}.png`;
+      link.href = canvas.toDataURL('image/png');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      if (!silent) toast(skippedCount > 0 ? `Receipt downloaded (${skippedCount} deleted item${skippedCount === 1 ? '' : 's'} omitted).` : 'Receipt downloaded.', 'ok');
+      return {success:true, skippedCount};
+    })
+    .catch(err => {
+      if (!silent) toast('Could not generate receipt image: ' + err.message, 'err');
+      return {success:false, reason:'render-error', error:err};
+    })
+    .finally(() => { document.body.removeChild(holder); });
+}
+
+/* Thin wrapper preserving the existing single-click "⬇ Receipt" button behavior (fire-and-forget). */
+function generateReceipt(clientName) {
+  generateReceiptForClient(clientName, {silent:false});
+}
+
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+/* Batch-downloads a receipt PNG for every client with at least one order, one at a time with a
+   short stagger between each — sequencing (rather than firing all at once) avoids browsers
+   throttling/blocking rapid-fire programmatic downloads and keeps memory use reasonable. */
+async function generateAllReceipts() {
+  const names = clientNames();
+  if (!names.length) { toast('No client orders to generate receipts for.', 'err'); return; }
+  if (typeof html2canvas === 'undefined') { toast('Receipt generator failed to load — check your internet connection and try again.', 'err'); return; }
+
+  toast(`Generating ${names.length} receipt${names.length===1?'':'s'}… this may take a moment.`, 'ok');
+  let successCount=0, skipCount=0;
+
+  for (let i=0; i<names.length; i++){
+    const result = await generateReceiptForClient(names[i], {silent:true});
+    if (result.success) successCount++; else skipCount++;
+    if (i < names.length-1) await sleep(450);
+  }
+
+  const parts=[`${successCount} receipt${successCount===1?'':'s'} downloaded`];
+  if (skipCount>0) parts.push(`${skipCount} skipped`);
+  toast(`Batch complete: ${parts.join(', ')}.`, (skipCount>0 && successCount===0) ? 'err' : 'ok');
 }
 
 /* ── EXPORT / IMPORT ────────────────────────────── */
 $e('exportBtn').addEventListener('click',function(){
-  const blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),items:state.items,orders:state.orders,hiddenCols:[...ui.hiddenCols],sortClients:ui.sortClients},null,2)],{type:'application/json'});
+  const blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),items:state.items,orders:state.orders,hiddenCols:[...ui.hiddenCols],sortClients:ui.sortClients,itemTabSort:ui.itemTabSort},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob), a=Object.assign(document.createElement('a'),{href:url,download:'preorder-session-'+new Date().toISOString().slice(0,10)+'.json'});
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url),1000); toast('Session exported.','ok');
@@ -1325,7 +1432,8 @@ $e('importInput').addEventListener('change',function(e){
       state.orders=d.orders.map(o=>Object.assign({storeInventory:false,manualOverride:false,overriddenQty:0},o));
       if(Array.isArray(d.hiddenCols)) ui.hiddenCols=new Set(d.hiddenCols);
       if(d.sortClients) ui.sortClients=d.sortClients;
-      ui.activeTab='clients'; renderAll(); save();
+      if(d.itemTabSort) ui.itemTabSort=d.itemTabSort;
+      ui.activeTab='clients'; ui.basket=[]; renderAll(); save();
       toast(`Loaded: ${state.items.length} items, ${state.orders.length} orders.`,'ok');
     }catch(err){toast('Load failed: '+err.message,'err');}
   };
@@ -1334,7 +1442,7 @@ $e('importInput').addEventListener('change',function(e){
 
 /* ── LOCAL STORAGE ──────────────────────────────── */
 const SK='tcgPreOrderV5';
-function save(){try{localStorage.setItem(SK,JSON.stringify({items:state.items,orders:state.orders,hiddenCols:[...ui.hiddenCols],sortClients:ui.sortClients}));}catch(e){}}
+function save(){try{localStorage.setItem(SK,JSON.stringify({items:state.items,orders:state.orders,hiddenCols:[...ui.hiddenCols],sortClients:ui.sortClients,itemTabSort:ui.itemTabSort}));}catch(e){}}
 function load(){
   try{
     const d=JSON.parse(localStorage.getItem(SK)||'null'); if(!d) return;
@@ -1342,6 +1450,7 @@ function load(){
     if(Array.isArray(d.orders)) state.orders=d.orders.map(o=>Object.assign({storeInventory:false,manualOverride:false,overriddenQty:0},o));
     if(Array.isArray(d.hiddenCols)) ui.hiddenCols=new Set(d.hiddenCols);
     if(d.sortClients) ui.sortClients=d.sortClients;
+    if(d.itemTabSort) ui.itemTabSort=d.itemTabSort;
   }catch(e){}
 }
 
