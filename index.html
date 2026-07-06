@@ -135,6 +135,7 @@ tbody tr:hover td { background:rgba(255,255,255,0.012); }
 /* ── LEDGER TOOLBAR ───────────────────────────────── */
 .ledger-toolbar { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:18px; padding:10px 14px; background:var(--surf-2); border:1px solid var(--border-s); border-radius:var(--r-s); }
 .lt-left,.lt-right { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.lt-right { margin-left:auto; }
 .lt-btn { background:var(--surf); border:1px solid var(--border); color:var(--text-d); border-radius:var(--r-xs); padding:6px 12px; font-size:12px; cursor:pointer; transition:all 0.14s; white-space:nowrap; display:inline-flex; align-items:center; gap:6px; }
 .lt-btn:hover  { border-color:var(--accent); color:var(--accent-l); }
 .lt-btn.active { border-color:var(--accent); color:var(--accent-l); background:var(--accent-gl); }
@@ -145,7 +146,7 @@ tbody tr:hover td { background:rgba(255,255,255,0.012); }
 .col-picker-panel {
   position:absolute; right:0; top:calc(100% + 8px); z-index:40;
   background:var(--surf-2); border:1px solid var(--border); border-radius:var(--r-s);
-  padding:14px 16px; min-width:210px; box-shadow:0 10px 30px rgba(0,0,0,0.5);
+  padding:14px 16px; min-width:210px; max-width:calc(100vw - 32px); box-shadow:0 10px 30px rgba(0,0,0,0.5);
 }
 .col-pick-hd { font-size:10px; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-f); font-weight:600; margin-bottom:10px; }
 .col-check { display:flex; align-items:center; gap:8px; padding:5px 0; font-size:12.5px; color:var(--text-d); cursor:pointer; transition:color 0.13s; }
@@ -1085,6 +1086,19 @@ function renderBasket(){
 
 /* ── EXCEL EXPORT ───────────────────────────────── */
 function sanitizeSheetName(name){return name.slice(0,31).replace(/[\[\]:*?/\\]/g,'_');}
+/* Guarantees a unique sheet name even if two items sanitize to the same string — critical now
+   that Client Overview's cross-sheet formulas depend on knowing the EXACT correct sheet name;
+   a silent collision here would make a formula point at the wrong item's data. */
+function uniqueSheetName(rawName,usedNames){
+  let base=sanitizeSheetName(rawName); if(!base) base='Sheet';
+  let candidate=base, n=2;
+  while(usedNames.has(candidate)){ const suf='_'+n; candidate=base.slice(0,31-suf.length)+suf; n++; }
+  usedNames.add(candidate);
+  return candidate;
+}
+/* Wraps a sheet name for use in a cross-sheet formula reference, escaping any literal single
+   quotes in the name (e.g. an item called "Editor's Choice") the way Excel requires: '' */
+function quotedSheetRef(sheetName){ return `'${sheetName.replace(/'/g,"''")}'`; }
 
 /* ── EXCEL FORMULA HELPERS ───────────────────────────────────────────────
    These build genuine, live Excel formulas (not pre-computed values) so the
@@ -1131,31 +1145,129 @@ function exportToExcel(){
   if(typeof XLSX==='undefined'){toast('Excel library not loaded — requires internet connection.','err');return;}
   if(!state.orders.length){toast('No orders to export.','err');return;}
   const wb=XLSX.utils.book_new();
+  const usedSheetNames=new Set();
 
   /* ============================================================
-     SHEET 1: Client Overview
-     Column order: who ordered → what/when → qty → DP/unit → required DP →
-     allocation → qty allocated → paid → amount allocated → cost/store flags →
-     value of allocated goods → floating capital → refund/balance → message.
-     DP/Unit, Required DP, Qty Allocated (natural rows), Amount Allocated,
-     Value of Allocated Goods, Floating Capital, and Refund/Balance are all
-     LIVE FORMULAS referencing only cells in their own row (or a client's own
-     subtotal row for the SUM-based totals) — editing an input cell (SRP, Qty
-     Ordered, Allocation %, Amount Paid, Cost Price) recalculates everything
-     downstream. Manually-overridden orders keep a static Qty Allocated value,
-     matching how the override is meant to work in the live ledger.
+     PASS 1 — Per-item sheets, built FIRST because they are now the
+     single source of truth: Client Overview cross-references these
+     exact cells (Pass 2 below), so we need their final sheet names and
+     row positions locked in before Client Overview can be built.
+
+     Column layout: Client, Qty Ordered, DP/Unit, Required DP, Allocation %
+     (a live formula pointing at this sheet's own header cell), Override?,
+     Raw Allocated (Unrounded) — Qty Ordered × Allocation % / 100, no
+     flooring — then Qty Allocated (Floored) to its right, which floors
+     the raw cell and is the one meant to be manually typed over as items
+     get physically distributed. Amount Allocated / Value of Allocated
+     Goods / Floating Capital all key off the FLOORED column, same as
+     before. Manually-overridden orders keep a static Floored value; the
+     Raw column stays a live formula either way, since it's a pure
+     reference figure, never something to override.
      ============================================================ */
-  const CO = {client:0,item:1,eta:2,qty:3,srp:4,dpUnit:5,reqDP:6,allocPct:7,override:8,qtyAlloc:9,paid:10,amtAlloc:11,cost:12,store:13,valueAlloc:14,floatCap:15,refund:16,msg:17};
+  const IT={client:0,qty:1,dpUnit:2,reqDP:3,allocPct:4,override:5,rawAlloc:6,qtyAlloc:7,paid:8,amtAlloc:9,store:10,valueAlloc:11,floatCap:12};
+  const itemSheets={}; // itemId -> { ws, sheetName, rowMap:{orderId->rowIdx} }
+
+  state.items.forEach(item=>{
+    const sheetName=uniqueSheetName(item.name,usedSheetNames);
+    const orders=itemOrders(item.id), totals=itemSummary(item.id);
+    const calcDecimal=naturalItemAllocation(item.id), actual=getActualAllocQty(item);
+    const totalOrderedForItem=itemOrderedBreakdown(item.id).totalQty;
+    const naturalFloor=Math.floor(calcDecimal), remaining=actual-totals.qtyAlloc;
+
+    const data=[
+      [`Item: ${item.name}`],
+      ['ETA',item.eta||'—'],
+      ['SRP',item.srp],                                       // row2 -> B3
+      ['Cost Price',item.costPrice],                           // row3 -> B4
+      ['Allocation %',item.allocationPct],                     // row4 -> B5 (the single master cell for this item)
+      ['DP / Unit (30%)',0],                                    // row5 -> B6 (formula)
+      ['Total Ordered (this item)',0],                          // row6 -> B7 (formula)
+      ['Calculated Allocated (Natural, Unrounded)',0],          // row7 -> B8 (formula)
+      ['Calculated Allocated (Floored)',0],                     // row8 -> B9 (formula)
+      ['Distributor Actual',item.actualAllocOverride?actual:''],// row9 -> B10
+      ['Delta vs Calculated',0],                                // row10 -> B11 (formula)
+      [],
+      ['Client','Qty Ordered','DP / Unit (30%)','Required DP','Allocation %','Override?','Raw Allocated (Unrounded)','Qty Allocated (Floored)','Amount Paid (DP)','Amount Allocated (SRP)','Store Inventory?','Value of Allocated Goods','Floating Capital'],
+    ];
+    const detailStartRow=data.length;
+    orders.forEach(order=>{
+      data.push([order.clientName,order.qtyOrdered,0,0,0,order.manualOverride?'Yes':'No',0,0,order.amountPaid,0,order.storeInventory?'Yes':'No',0,0]);
+    });
+    const detailEndRow=data.length-1;
+    data.push([]);
+    const totalsRowIdx=data.length;
+    data.push(['TOTALS',totals.qtyOrd,'','','','',0,totals.qtyAlloc,totals.paid,totals.srpVal,'',totals.val,totals.fc]);
+    data.push([]);
+    data.push(['Actual Allocated:',actual,remaining>=0?`+${remaining} left to give out`:`${remaining} over-allocated`]);
+
+    const ws=XLSX.utils.aoa_to_sheet(data);
+    const SRP_ABS=absRef(2,1), COST_ABS=absRef(3,1), ALLOCPCT_ABS=absRef(4,1);
+
+    setFormulaCell(ws,5,1,`${SRP_ABS}*0.3`,item.srp*0.30);
+    setFormulaCell(ws,6,1,`SUM(${rangeRef(IT.qty,detailStartRow,detailEndRow)})`,totalOrderedForItem);
+    setFormulaCell(ws,7,1,`B7*${ALLOCPCT_ABS}/100`,calcDecimal);
+    setFormulaCell(ws,8,1,`FLOOR(B8,1)`,naturalFloor);
+    setTextFormulaCell(ws,10,1,`IF(B10="","(no override set)",B10-B9)`,item.actualAllocOverride?String(actual-naturalFloor):'(no override set)');
+
+    const rowMap={};
+    let r=detailStartRow;
+    orders.forEach(order=>{
+      const fin=orderFin(order);
+      const qtyRef=cellRef(r,IT.qty), storeRef=cellRef(r,IT.store);
+
+      setFormulaCell(ws,r,IT.allocPct,`${ALLOCPCT_ABS}`,item.allocationPct);
+      const allocPctRef=cellRef(r,IT.allocPct);
+      const dpUnitVal=dpPrice(order)*0.30;
+      setFormulaCell(ws,r,IT.dpUnit,`IF(${storeRef}="Yes",${COST_ABS},${SRP_ABS})*0.3`,dpUnitVal);
+      setFormulaCell(ws,r,IT.reqDP,`${qtyRef}*${cellRef(r,IT.dpUnit)}`,(Number(order.qtyOrdered)||0)*dpUnitVal);
+      setFormulaCell(ws,r,IT.rawAlloc,`${qtyRef}*${allocPctRef}/100`,allocQtyRaw(order));
+      if(order.manualOverride){
+        ws[cellRef(r,IT.qtyAlloc)]={t:'n',v:fin.aq};
+      } else {
+        setFormulaCell(ws,r,IT.qtyAlloc,`FLOOR(${cellRef(r,IT.rawAlloc)},1)`,fin.aq);
+      }
+      const qtyAllocRef=cellRef(r,IT.qtyAlloc), paidRef=cellRef(r,IT.paid);
+      setFormulaCell(ws,r,IT.amtAlloc,`${qtyAllocRef}*${SRP_ABS}`,fin.srpValueAlloc);
+      setFormulaCell(ws,r,IT.valueAlloc,`IF(${storeRef}="Yes",${qtyAllocRef}*${COST_ABS},${qtyAllocRef}*${SRP_ABS})`,fin.valueAlloc);
+      setFormulaCell(ws,r,IT.floatCap,`${paidRef}-(${qtyRef}*${COST_ABS}*0.3)`,fin.fc);
+      rowMap[order.id]=r;
+      r++;
+    });
+
+    setFormulaCell(ws,totalsRowIdx,IT.qty,`SUM(${rangeRef(IT.qty,detailStartRow,detailEndRow)})`,totals.qtyOrd);
+    setFormulaCell(ws,totalsRowIdx,IT.rawAlloc,`SUM(${rangeRef(IT.rawAlloc,detailStartRow,detailEndRow)})`,orders.reduce((s,o)=>s+allocQtyRaw(o),0));
+    setFormulaCell(ws,totalsRowIdx,IT.qtyAlloc,`SUM(${rangeRef(IT.qtyAlloc,detailStartRow,detailEndRow)})`,totals.qtyAlloc);
+    setFormulaCell(ws,totalsRowIdx,IT.paid,`SUM(${rangeRef(IT.paid,detailStartRow,detailEndRow)})`,totals.paid);
+    setFormulaCell(ws,totalsRowIdx,IT.amtAlloc,`SUM(${rangeRef(IT.amtAlloc,detailStartRow,detailEndRow)})`,totals.srpVal);
+    setFormulaCell(ws,totalsRowIdx,IT.valueAlloc,`SUM(${rangeRef(IT.valueAlloc,detailStartRow,detailEndRow)})`,totals.val);
+    setFormulaCell(ws,totalsRowIdx,IT.floatCap,`SUM(${rangeRef(IT.floatCap,detailStartRow,detailEndRow)})`,totals.fc);
+
+    ws['!cols']=[{wch:22},{wch:13},{wch:15},{wch:13},{wch:13},{wch:11},{wch:20},{wch:18},{wch:16},{wch:19},{wch:14},{wch:20},{wch:16}];
+    itemSheets[item.id]={ws,sheetName,rowMap};
+  });
+
+  /* ============================================================
+     PASS 2 — Client Overview. Allocation %, Raw Allocated, and Qty
+     Allocated (Floored) all cross-reference the matching per-item
+     sheet's cells directly — so editing a per-item sheet as you
+     distribute items (or changing that item's Allocation % header)
+     automatically flows through here. Everything downstream of those
+     three (Amount Allocated, Value of Allocated Goods, Floating
+     Capital, Refund/Balance) stays a same-row formula, same as before —
+     they simply read whatever value now lands in this row's own cells.
+     ============================================================ */
+  const CO={client:0,item:1,eta:2,qty:3,srp:4,dpUnit:5,reqDP:6,allocPct:7,override:8,rawAlloc:9,qtyAlloc:10,paid:11,amtAlloc:12,cost:13,store:14,valueAlloc:15,floatCap:16,refund:17,msg:18};
   const clientData=[
     ['Allocation Percentages (as of export)'],
     ['Item / SKU','Allocation %'],
   ];
-  state.items.forEach(item=>{ clientData.push([item.name,item.allocationPct]); });
+  const allocRefRowForItem={}; // itemId -> row index of its line in this mini reference block
+  state.items.forEach(item=>{ allocRefRowForItem[item.id]=clientData.length; clientData.push([item.name,0]); });
   clientData.push([]);
   const headerRow=clientData.length;
-  clientData.push(['Client','Item / SKU','ETA','Qty Ordered','SRP','DP / Unit (30%)','Required DP','Allocation %','Override?','Qty Allocated','Amount Paid (DP)','Amount Allocated (SRP)','Cost Price','Store Inventory?','Value of Allocated Goods','Floating Capital','Refund / Balance','Client Message (Copy & Send)']);
+  clientData.push(['Client','Item / SKU','ETA','Qty Ordered','SRP','DP / Unit (30%)','Required DP','Allocation %','Override?','Raw Allocated (Unrounded)','Qty Allocated (Floored)','Amount Paid (DP)','Amount Allocated (SRP)','Cost Price','Store Inventory?','Value of Allocated Goods','Floating Capital','Refund / Balance','Client Message (Copy & Send)']);
 
-  const clientBlocks=[]; // {name, startRow, endRow} for SUM-formula patching afterward
+  const clientBlocks=[];
   clientNames().forEach(name=>{
     const orders=ordersForClient(name);
     const startRow=clientData.length;
@@ -1163,22 +1275,26 @@ function exportToExcel(){
       const item=getItem(order.itemId);
       clientData.push([
         name, item?item.name:'DELETED ITEM', item?(item.eta||''):'', order.qtyOrdered,
-        item?item.srp:0, 0, 0,                                   // SRP static; DP/Unit & Required DP patched as formulas
-        item?item.allocationPct:0, order.manualOverride?'Yes':'No', 0,  // Qty Allocated patched below
-        order.amountPaid, 0,                                      // Amount Allocated patched as formula
-        item?item.costPrice:0, order.storeInventory?'Yes':'No', 0, 0, '', ''  // Value/Float/Refund patched; message blank on detail rows
+        item?item.srp:0, 0, 0, 0, order.manualOverride?'Yes':'No', 0, 0,
+        order.amountPaid, 0, item?item.costPrice:0, order.storeInventory?'Yes':'No', 0, 0, '', ''
       ]);
     });
     const endRow=clientData.length-1;
     clientBlocks.push({name,startRow,endRow});
-    clientData.push([`SUBTOTAL — ${name}`,'','','','','','','','','',0,0,'','',0,0,'',buildClientMessageText(name)]);
+    clientData.push([`SUBTOTAL — ${name}`,'','','','','','','','','','',0,0,'','',0,0,'',buildClientMessageText(name)]);
     clientData.push([]);
   });
 
   const wsClient=XLSX.utils.aoa_to_sheet(clientData);
 
-  /* Patch formulas — re-walk clients/orders in the exact same order used to build clientData above,
-     so row indices line up perfectly with what's already on the sheet. */
+  /* Reference block at the top: each item's % cross-references its own sheet's header cell too,
+     so this quick-glance summary never drifts out of sync with the per-item sheets either. */
+  state.items.forEach(item=>{
+    const itemSheet=itemSheets[item.id]; if(!itemSheet) return;
+    const rIdx=allocRefRowForItem[item.id];
+    setFormulaCell(wsClient,rIdx,1,`${quotedSheetRef(itemSheet.sheetName)}!${absRef(4,1)}`,item.allocationPct);
+  });
+
   let rr=headerRow+1;
   clientNames().forEach(name=>{
     const orders=ordersForClient(name);
@@ -1187,19 +1303,33 @@ function exportToExcel(){
       const item=getItem(order.itemId);
       const R=rr;
       const srpRef=cellRef(R,CO.srp), costRef=cellRef(R,CO.cost), qtyRef=cellRef(R,CO.qty);
-      const allocPctRef=cellRef(R,CO.allocPct), storeRef=cellRef(R,CO.store), paidRef=cellRef(R,CO.paid);
-      const qtyAllocRef=cellRef(R,CO.qtyAlloc), valueAllocRef=cellRef(R,CO.valueAlloc);
+      const storeRef=cellRef(R,CO.store), paidRef=cellRef(R,CO.paid);
+      const itemSheet=item?itemSheets[item.id]:null;
+
+      if(itemSheet){
+        const qref=quotedSheetRef(itemSheet.sheetName);
+        setFormulaCell(wsClient,R,CO.allocPct,`${qref}!${absRef(4,1)}`,item.allocationPct);
+      } else {
+        wsClient[cellRef(R,CO.allocPct)]={t:'n',v:0};
+      }
+      const allocPctRef=cellRef(R,CO.allocPct);
 
       const dpUnitVal=item?dpPrice(order)*0.30:0;
       setFormulaCell(wsClient,R,CO.dpUnit,`IF(${storeRef}="Yes",${costRef},${srpRef})*0.3`,dpUnitVal);
       setFormulaCell(wsClient,R,CO.reqDP,`${qtyRef}*${cellRef(R,CO.dpUnit)}`,(Number(order.qtyOrdered)||0)*dpUnitVal);
 
       const fin=orderFin(order);
-      if(order.manualOverride){
-        wsClient[cellRef(R,CO.qtyAlloc)]={t:'n',v:fin.aq};
+      if(itemSheet){
+        const qref=quotedSheetRef(itemSheet.sheetName);
+        const orderRow=itemSheet.rowMap[order.id];
+        setFormulaCell(wsClient,R,CO.rawAlloc,`${qref}!${cellRef(orderRow,IT.rawAlloc)}`,allocQtyRaw(order));
+        setFormulaCell(wsClient,R,CO.qtyAlloc,`${qref}!${cellRef(orderRow,IT.qtyAlloc)}`,fin.aq);
       } else {
-        setFormulaCell(wsClient,R,CO.qtyAlloc,`FLOOR(${qtyRef}*${allocPctRef}/100,1)`,fin.aq);
+        wsClient[cellRef(R,CO.rawAlloc)]={t:'n',v:0};
+        wsClient[cellRef(R,CO.qtyAlloc)]={t:'n',v:0};
       }
+
+      const qtyAllocRef=cellRef(R,CO.qtyAlloc), valueAllocRef=cellRef(R,CO.valueAlloc);
       setFormulaCell(wsClient,R,CO.amtAlloc,`${qtyAllocRef}*${srpRef}`,fin.srpValueAlloc);
       setFormulaCell(wsClient,R,CO.valueAlloc,`IF(${storeRef}="Yes",${qtyAllocRef}*${costRef},${qtyAllocRef}*${srpRef})`,fin.valueAlloc);
       setFormulaCell(wsClient,R,CO.floatCap,`${paidRef}-(${qtyRef}*${costRef}*0.3)`,fin.fc);
@@ -1215,25 +1345,22 @@ function exportToExcel(){
     setFormulaCell(wsClient,subRow,CO.floatCap,`SUM(${rangeRef(CO.floatCap,block.startRow,block.endRow)})`,summary.fc);
     const subPaidRef=cellRef(subRow,CO.paid), subValueRef=cellRef(subRow,CO.valueAlloc);
     setTextFormulaCell(wsClient,subRow,CO.refund,refundBalanceFormula(subPaidRef,subValueRef),summary.isZero?'Settled':summary.isRefund?`Refund ₱${summary.net.toFixed(2)}`:`Balance ₱${Math.abs(summary.net).toFixed(2)}`);
-    rr+=2; // subtotal row + blank spacer row
+    rr+=2;
   });
 
-  wsClient['!cols']=[{wch:22},{wch:26},{wch:10},{wch:12},{wch:11},{wch:16},{wch:13},{wch:13},{wch:11},{wch:13},{wch:16},{wch:19},{wch:12},{wch:14},{wch:20},{wch:16},{wch:20},{wch:70}];
-  XLSX.utils.book_append_sheet(wb,wsClient,'Client Overview');
+  wsClient['!cols']=[{wch:22},{wch:26},{wch:10},{wch:12},{wch:11},{wch:16},{wch:13},{wch:13},{wch:11},{wch:20},{wch:18},{wch:16},{wch:19},{wch:12},{wch:14},{wch:20},{wch:16},{wch:20},{wch:70}];
 
   /* ============================================================
-     SHEET 2: Allocation Breakdown — one row per item.
-     DP/Unit here is the client-facing public rate (SRP × 30%); "Total Required
-     DP" covers client pre-orders only (Client Ordered × DP/Unit) since store
-     restock orders run on cost-price economics, not the public rate — blending
-     the two into one number would be misleading. Calculated Allocated stays
-     independent of any per-client ledger overrides (see naturalItemAllocation).
+     Allocation Breakdown — one row per item. Same-sheet only (no
+     cross-references needed): both Natural and Floored figures are
+     computed directly within this row from Total Ordered × Allocation %,
+     kept deliberately independent of any per-client ledger overrides.
      ============================================================ */
-  const AB={item:0,eta:1,srp:2,cost:3,allocPct:4,dpUnit:5,totalOrd:6,clientOrd:7,storeOrd:8,reqDP:9,calcAlloc:10,actual:11,delta:12};
-  const breakdownData=[['Item / SKU','ETA','SRP','Cost Price','Allocation %','DP / Unit (30%)','Total Ordered','Client Ordered','Store Ordered','Total Required DP (Client Orders)','Calculated Allocated (Natural)','Distributor Actual','Delta vs Calculated']];
+  const AB={item:0,eta:1,srp:2,cost:3,allocPct:4,dpUnit:5,totalOrd:6,clientOrd:7,storeOrd:8,reqDP:9,calcAllocNatural:10,calcAllocFloored:11,actual:12,delta:13};
+  const breakdownData=[['Item / SKU','ETA','SRP','Cost Price','Allocation %','DP / Unit (30%)','Total Ordered','Client Ordered','Store Ordered','Total Required DP (Client Orders)','Calculated Allocated (Natural, Unrounded)','Calculated Allocated (Floored)','Distributor Actual','Delta vs Calculated']];
   state.items.forEach(item=>{
     const b=itemOrderedBreakdown(item.id);
-    breakdownData.push([item.name,item.eta||'',item.srp,item.costPrice,item.allocationPct,0,b.totalQty,b.clientQty,b.storeQty,0,0,'','']);
+    breakdownData.push([item.name,item.eta||'',item.srp,item.costPrice,item.allocationPct,0,b.totalQty,b.clientQty,b.storeQty,0,0,0,'','']);
   });
   const wsBreakdown=XLSX.utils.aoa_to_sheet(breakdownData);
   let br=1;
@@ -1243,92 +1370,27 @@ function exportToExcel(){
     const srpRef=cellRef(R,AB.srp), clientOrdRef=cellRef(R,AB.clientOrd), allocPctRef=cellRef(R,AB.allocPct), totalOrdRef=cellRef(R,AB.totalOrd);
     setFormulaCell(wsBreakdown,R,AB.dpUnit,`${srpRef}*0.3`,item.srp*0.30);
     setFormulaCell(wsBreakdown,R,AB.reqDP,`${clientOrdRef}*${cellRef(R,AB.dpUnit)}`,b.clientQty*item.srp*0.30);
-    setFormulaCell(wsBreakdown,R,AB.calcAlloc,`${totalOrdRef}*${allocPctRef}/100`,calcDecimal);
+    setFormulaCell(wsBreakdown,R,AB.calcAllocNatural,`${totalOrdRef}*${allocPctRef}/100`,calcDecimal);
+    setFormulaCell(wsBreakdown,R,AB.calcAllocFloored,`FLOOR(${cellRef(R,AB.calcAllocNatural)},1)`,Math.floor(calcDecimal));
     if(item.actualAllocOverride){
       wsBreakdown[cellRef(R,AB.actual)]={t:'n',v:actual};
-      setFormulaCell(wsBreakdown,R,AB.delta,`${cellRef(R,AB.actual)}-FLOOR(${cellRef(R,AB.calcAlloc)},1)`,actual-Math.floor(calcDecimal));
+      setFormulaCell(wsBreakdown,R,AB.delta,`${cellRef(R,AB.actual)}-${cellRef(R,AB.calcAllocFloored)}`,actual-Math.floor(calcDecimal));
     }
     br++;
   });
-  wsBreakdown['!cols']=[{wch:30},{wch:10},{wch:10},{wch:11},{wch:12},{wch:16},{wch:13},{wch:13},{wch:13},{wch:24},{wch:22},{wch:17},{wch:16}];
-  XLSX.utils.book_append_sheet(wb,wsBreakdown,'Allocation Breakdown');
+  wsBreakdown['!cols']=[{wch:30},{wch:10},{wch:10},{wch:11},{wch:12},{wch:16},{wch:13},{wch:13},{wch:13},{wch:24},{wch:26},{wch:20},{wch:17},{wch:16}];
 
   /* ============================================================
-     SHEET 3+: Per-item detail sheets.
-     Header block holds SRP / Cost Price / Allocation % as individually
-     addressable cells; every row formula below references them via absolute
-     ($B$3-style) references, so all client rows for this item share one
-     source of truth for the item's economics.
+     Assemble the workbook in the desired reading order — Client
+     Overview and Allocation Breakdown first even though the per-item
+     sheets were technically built first (they had to be, to know their
+     own cell addresses before Client Overview could reference them).
      ============================================================ */
-  const IT={client:0,qty:1,dpUnit:2,reqDP:3,allocPct:4,override:5,qtyAlloc:6,paid:7,amtAlloc:8,store:9,valueAlloc:10,floatCap:11};
+  XLSX.utils.book_append_sheet(wb,wsClient,'Client Overview');
+  XLSX.utils.book_append_sheet(wb,wsBreakdown,'Allocation Breakdown');
   state.items.forEach(item=>{
-    const orders=itemOrders(item.id), totals=itemSummary(item.id);
-    const calcDecimal=naturalItemAllocation(item.id), actual=getActualAllocQty(item);
-    const totalOrderedForItem=itemOrderedBreakdown(item.id).totalQty;
-    const naturalFloor=Math.floor(calcDecimal), remaining=actual-totals.qtyAlloc;
-
-    const data=[
-      [`Item: ${item.name}`],
-      ['ETA',item.eta||'—'],
-      ['SRP',item.srp],                                    // row2 (0-idx) -> B3
-      ['Cost Price',item.costPrice],                        // row3 -> B4
-      ['Allocation %',item.allocationPct],                  // row4 -> B5
-      ['DP / Unit (30%)',0],                                 // row5 -> B6 (formula)
-      ['Total Ordered (this item)',0],                       // row6 -> B7 (formula)
-      ['Calculated Allocated (Natural)',0],                  // row7 -> B8 (formula)
-      ['Distributor Actual',item.actualAllocOverride?actual:''], // row8 -> B9
-      ['Delta vs Calculated',0],                             // row9 -> B10 (formula)
-      [],
-      ['Client','Qty Ordered','DP / Unit (30%)','Required DP','Allocation %','Override?','Qty Allocated','Amount Paid (DP)','Amount Allocated (SRP)','Store Inventory?','Value of Allocated Goods','Floating Capital'],
-    ];
-    const detailStartRow=data.length;
-    orders.forEach(order=>{
-      data.push([order.clientName,order.qtyOrdered,0,0,item.allocationPct,order.manualOverride?'Yes':'No',0,order.amountPaid,0,order.storeInventory?'Yes':'No',0,0]);
-    });
-    const detailEndRow=data.length-1;
-    data.push([]);
-    const totalsRowIdx=data.length;
-    data.push(['TOTALS',totals.qtyOrd,'','','','',totals.qtyAlloc,totals.paid,totals.srpVal,'',totals.val,totals.fc]);
-    data.push([]);
-    data.push(['Actual Allocated:',actual,remaining>=0?`+${remaining} left to give out`:`${remaining} over-allocated`]);
-
-    const ws=XLSX.utils.aoa_to_sheet(data);
-    const SRP_ABS=absRef(2,1), COST_ABS=absRef(3,1), ALLOCPCT_ABS=absRef(4,1);
-
-    setFormulaCell(ws,5,1,`${SRP_ABS}*0.3`,item.srp*0.30);
-    setFormulaCell(ws,6,1,`SUM(${rangeRef(IT.qty,detailStartRow,detailEndRow)})`,totalOrderedForItem);
-    setFormulaCell(ws,7,1,`B7*${ALLOCPCT_ABS}/100`,calcDecimal);
-    setTextFormulaCell(ws,9,1,`IF(B9="","(no override set)",B9-FLOOR(B8,1))`,item.actualAllocOverride?String(actual-naturalFloor):'(no override set)');
-
-    let r=detailStartRow;
-    orders.forEach(order=>{
-      const fin=orderFin(order);
-      const qtyRef=cellRef(r,IT.qty), storeRef=cellRef(r,IT.store), allocPctRef=cellRef(r,IT.allocPct);
-      const qtyAllocRef=cellRef(r,IT.qtyAlloc), paidRef=cellRef(r,IT.paid);
-
-      const dpUnitVal=dpPrice(order)*0.30;
-      setFormulaCell(ws,r,IT.dpUnit,`IF(${storeRef}="Yes",${COST_ABS},${SRP_ABS})*0.3`,dpUnitVal);
-      setFormulaCell(ws,r,IT.reqDP,`${qtyRef}*${cellRef(r,IT.dpUnit)}`,(Number(order.qtyOrdered)||0)*dpUnitVal);
-      if(order.manualOverride){
-        ws[cellRef(r,IT.qtyAlloc)]={t:'n',v:fin.aq};
-      } else {
-        setFormulaCell(ws,r,IT.qtyAlloc,`FLOOR(${qtyRef}*${allocPctRef}/100,1)`,fin.aq);
-      }
-      setFormulaCell(ws,r,IT.amtAlloc,`${qtyAllocRef}*${SRP_ABS}`,fin.srpValueAlloc);
-      setFormulaCell(ws,r,IT.valueAlloc,`IF(${storeRef}="Yes",${qtyAllocRef}*${COST_ABS},${qtyAllocRef}*${SRP_ABS})`,fin.valueAlloc);
-      setFormulaCell(ws,r,IT.floatCap,`${paidRef}-(${qtyRef}*${COST_ABS}*0.3)`,fin.fc);
-      r++;
-    });
-
-    setFormulaCell(ws,totalsRowIdx,IT.qty,`SUM(${rangeRef(IT.qty,detailStartRow,detailEndRow)})`,totals.qtyOrd);
-    setFormulaCell(ws,totalsRowIdx,IT.qtyAlloc,`SUM(${rangeRef(IT.qtyAlloc,detailStartRow,detailEndRow)})`,totals.qtyAlloc);
-    setFormulaCell(ws,totalsRowIdx,IT.paid,`SUM(${rangeRef(IT.paid,detailStartRow,detailEndRow)})`,totals.paid);
-    setFormulaCell(ws,totalsRowIdx,IT.amtAlloc,`SUM(${rangeRef(IT.amtAlloc,detailStartRow,detailEndRow)})`,totals.srpVal);
-    setFormulaCell(ws,totalsRowIdx,IT.valueAlloc,`SUM(${rangeRef(IT.valueAlloc,detailStartRow,detailEndRow)})`,totals.val);
-    setFormulaCell(ws,totalsRowIdx,IT.floatCap,`SUM(${rangeRef(IT.floatCap,detailStartRow,detailEndRow)})`,totals.fc);
-
-    ws['!cols']=[{wch:22},{wch:13},{wch:15},{wch:13},{wch:13},{wch:11},{wch:13},{wch:16},{wch:19},{wch:14},{wch:20},{wch:16}];
-    XLSX.utils.book_append_sheet(wb,ws,sanitizeSheetName(item.name));
+    const itemSheet=itemSheets[item.id];
+    XLSX.utils.book_append_sheet(wb,itemSheet.ws,itemSheet.sheetName);
   });
 
   XLSX.writeFile(wb,'preorder-ledger-'+new Date().toISOString().slice(0,10)+'.xlsx');
