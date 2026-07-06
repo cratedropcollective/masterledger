@@ -1135,8 +1135,8 @@ function buildClientMessageText(name) {
   });
   lines.push('',`Total downpayment received: ${php(summary.paid)}`,`Total value of allocated items: ${php(summary.val)}`,'');
   if(summary.isZero) lines.push('Your account is fully settled — no refund or balance due.');
-  else if(summary.isRefund) lines.push(`You have a REFUND of ${php(summary.net)} coming your way!`);
-  else lines.push(`You have a remaining BALANCE of ${php(Math.abs(summary.net))} to settle upon pickup.`);
+  else if(summary.isRefund) lines.push(`You have a REFUND of ${php(summary.net)} coming your way! Do send us your Gcash (refunds of 8,000 or below) or Bank Account (refunds above 8,000).`);
+  else lines.push(`You have a remaining BALANCE of ${php(Math.abs(summary.net))} to settle before pickup.`);
   lines.push('','Thank you for your pre-order!');
   return lines.join('\n');
 }
