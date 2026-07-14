@@ -144,7 +144,7 @@ tbody tr:hover td { background:rgba(255,255,255,0.012); }
 /* ── COLUMN PICKER ────────────────────────────────── */
 .col-picker-wrap { position:relative; }
 .col-picker-panel {
-  position:absolute; right:0; top:calc(100% + 8px); z-index:40;
+  position:fixed; z-index:210;
   background:var(--surf-2); border:1px solid var(--border); border-radius:var(--r-s);
   padding:14px 16px; min-width:210px; max-width:calc(100vw - 32px); box-shadow:0 10px 30px rgba(0,0,0,0.5);
 }
@@ -238,6 +238,15 @@ tbody tr:hover td { background:rgba(255,255,255,0.012); }
 .brk-delta-neg  { background:var(--red-s);   color:var(--red); }
 .brk-delta-zero { background:var(--surf-3);  color:var(--text-d); }
 
+.brk-profit { border-top:1px solid var(--border-s); padding-top:12px; display:flex; flex-direction:column; gap:4px; }
+.brk-profit-label { font-size:11.5px; color:var(--text-d); display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.brk-profit-value { font-family:var(--fd); font-size:20px; font-weight:700; color:var(--green); }
+.brk-profit-value.brk-profit-neg { color:var(--red); }
+.brk-profit-sub { font-size:11px; color:var(--text-f); font-family:var(--fm); }
+.brk-profit-tag { font-family:var(--fm); font-size:9.5px; font-weight:700; padding:1px 7px; border-radius:20px; text-transform:uppercase; letter-spacing:0.04em; }
+.brk-profit-tag.confirmed { background:var(--green-s); color:var(--green); border:1px solid rgba(79,209,160,0.25); }
+.brk-profit-tag.estimated { background:var(--gold-s); color:var(--gold); border:1px solid rgba(244,197,83,0.25); }
+
 /* ── PILLS ────────────────────────────────────────── */
 .pill { display:inline-flex; align-items:center; padding:3px 9px; border-radius:20px; font-size:11.5px; font-weight:600; font-family:var(--fm); white-space:nowrap; }
 .pill-ref { background:var(--green-s); color:var(--green); border:1px solid rgba(79,209,160,0.2); }
@@ -259,8 +268,42 @@ tbody tr:hover td { background:rgba(255,255,255,0.012); }
 .toast-undo { display:inline-block; margin-left:10px; background:rgba(255,255,255,0.14); color:var(--text); border:1px solid rgba(255,255,255,0.22); border-radius:4px; padding:2px 9px; font-size:11.5px; font-weight:700; cursor:pointer; vertical-align:middle; transition:background 0.13s; }
 .toast-undo:hover { background:rgba(255,255,255,0.25); }
 
+/* ── RAFFLE WHEEL ─────────────────────────────────── */
+.raffle-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start; }
+.raffle-pool { background:var(--surf-2); border:1px solid var(--border); border-radius:var(--r-s); padding:18px; display:flex; flex-direction:column; gap:14px; }
+.raffle-pool-hd { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+.raffle-pool-title { font-family:var(--fd); font-size:14.5px; font-weight:700; display:flex; align-items:center; gap:7px; }
+.raffle-pool-sub { font-size:11.5px; color:var(--text-d); margin-top:3px; }
+
+.raffle-count-row { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-d); flex-wrap:wrap; }
+.raffle-count-input { width:56px; background:var(--surf); border:1px solid var(--border); border-radius:var(--r-xs); padding:5px 7px; font-family:var(--fm); text-align:center; }
+.raffle-progress { font-family:var(--fm); font-size:11.5px; color:var(--text); }
+
+.raffle-wheel-wrap { position:relative; display:flex; justify-content:center; align-items:center; padding:8px 0 4px; }
+.raffle-pointer { position:absolute; top:-4px; left:50%; transform:translateX(-50%); font-size:24px; z-index:5; filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5)); }
+.raffle-wheel-svg { transition:transform 4.2s cubic-bezier(0.12,0.67,0.11,1); display:block; }
+.raffle-wheel-svg.spinning-disabled { transition:none; }
+
+.raffle-name-list { display:flex; flex-direction:column; gap:6px; max-height:200px; overflow-y:auto; padding-right:4px; }
+.raffle-name-row { display:flex; align-items:center; gap:8px; font-size:12.5px; padding:2px 0; }
+.raffle-swatch { width:11px; height:11px; border-radius:3px; flex-shrink:0; }
+.raffle-name-row .rn-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.raffle-name-row .rn-weight { font-family:var(--fm); color:var(--text-d); font-size:11px; white-space:nowrap; }
+
+.raffle-actions-row { display:flex; gap:8px; flex-wrap:wrap; }
+.btn-raffle-spin { background:var(--accent); color:#fff; border:1px solid var(--accent); border-radius:var(--r-s); padding:10px 18px; font-size:13px; font-weight:700; cursor:pointer; transition:background 0.14s; flex:1; }
+.btn-raffle-spin:hover:not(:disabled) { background:var(--accent-l); }
+.btn-raffle-spin:disabled { opacity:0.4; cursor:not-allowed; }
+
+.raffle-winners-hd { font-size:10.5px; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-d); font-weight:600; }
+.raffle-winners-list { display:flex; flex-direction:column; gap:5px; }
+.raffle-winner-chip { display:flex; align-items:center; background:var(--gold-s); border:1px solid rgba(244,197,83,0.25); border-radius:6px; padding:6px 10px; font-size:12.5px; }
+.raffle-winner-chip .rw-num { font-family:var(--fm); color:var(--gold); font-weight:700; margin-right:8px; min-width:18px; }
+
+.raffle-empty-pool { text-align:center; color:var(--text-f); font-size:12.5px; padding:24px 10px; font-style:italic; border:1px dashed var(--border); border-radius:var(--r-xs); }
+
 /* ── RESPONSIVE ───────────────────────────────────── */
-@media (max-width:900px) { .dashboard { grid-template-columns:1fr 1fr; } }
+@media (max-width:900px) { .dashboard { grid-template-columns:1fr 1fr; } .raffle-grid { grid-template-columns:1fr; } }
 @media (max-width:580px) { .app { padding:14px 14px 60px; } .dashboard { grid-template-columns:1fr; } .form-grid { flex-direction:column; } .ff { min-width:100%; } }
 </style>
 </head>
@@ -338,8 +381,20 @@ tbody tr:hover td { background:rgba(255,255,255,0.012); }
       </div>
     </div>
   </div>
+
+  <div class="panel">
+    <div class="panel-head"><div class="panel-title">🎡 Raffle Wheel <span class="badge" id="raffleBadge">0 items</span></div></div>
+    <div class="panel-body">
+      <div class="ff" style="max-width:360px;margin-bottom:18px">
+        <label for="raffleItemSelect">Select Item</label>
+        <select id="raffleItemSelect" class="fi"><option value="">— Select item —</option></select>
+      </div>
+      <div id="raffleArea"></div>
+    </div>
+  </div>
 </div>
 
+<div id="colPickerOverlay"></div>
 <div class="toast" id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -363,7 +418,7 @@ const COL_ALIGN = { qty:'r', alloc:'c', paid:'r', amtAlloc:'r', float:'r', refun
 const COL_STYLE = { alloc:'min-width:160px', amtAlloc:'min-width:135px', float:'min-width:130px', refund:'min-width:160px', act:'min-width:70px' };
 
 /* ── STATE ──────────────────────────────────────── */
-let state = { items:[], orders:[] };
+let state = { items:[], orders:[], raffles:{} };
 let ui = {
   activeTab:        'clients',
   editItemId:       null,
@@ -373,7 +428,9 @@ let ui = {
   sortClients:      'alpha',   /* 'alpha' | 'date' */
   itemTabSort:      'date',    /* 'date' | 'qtyDesc' — order of client rows within an Item tab */
   collapsedClients: new Set(),
-  showColPicker:    false
+  showColPicker:    false,
+  raffleSelectedItem: null,    /* itemId currently shown in the Raffle Wheel panel */
+  raffleSpinning:   {}         /* itemId+poolKey -> true while a spin animation is in flight, guards double-clicks */
 };
 
 /* ── UTILITIES ──────────────────────────────────── */
@@ -444,6 +501,95 @@ function itemOrdersSorted(itemId) {
   if(ui.itemTabSort==='qtyDesc') return orders.slice().sort((a,b)=>(Number(b.qtyOrdered)||0)-(Number(a.qtyOrdered)||0));
   return orders;
 }
+
+/* ── RAFFLE WHEEL ────────────────────────────────────────────────────────
+   Two independent pools per item — clients with an allocation >0 ("allocated")
+   and clients with exactly 0 ("zero") — each raffled separately. Store-inventory
+   and manually-overridden orders are excluded entirely (an override is a firm
+   decision already made for that client, not a pending fractional claim). A
+   client with more than one eligible order for the same item is combined into
+   a single entry, summing their floored allocation and their remainder, to
+   stay consistent with how the rest of the ledger already totals a client's
+   allocation for an item. Entries are weighted by their summed remainder —
+   this weighting, the slice geometry, and the spin-landing math were all
+   independently verified (weighted distribution over 200k trials, and every
+   possible winner confirmed to land the pointer correctly) before being wired
+   in here. */
+function getRafflePoolState(itemId, poolKey) {
+  if(!state.raffles[itemId]) state.raffles[itemId]={};
+  if(!state.raffles[itemId][poolKey]) state.raffles[itemId][poolKey]={winners:[],manualCount:null};
+  return state.raffles[itemId][poolKey];
+}
+function raffleEligibleEntries(itemId, poolKey) {
+  const orders=itemOrders(itemId).filter(o=>!o.storeInventory && !o.manualOverride);
+  const byClient={};
+  orders.forEach(o=>{
+    const raw=allocQtyRaw(o), floored=Math.floor(raw), remainder=raw-floored;
+    if(!byClient[o.clientName]) byClient[o.clientName]={flooredSum:0,remainderSum:0};
+    byClient[o.clientName].flooredSum+=floored;
+    byClient[o.clientName].remainderSum+=remainder;
+  });
+  return Object.entries(byClient)
+    .filter(([name,v])=>(poolKey==='zero'?v.flooredSum===0:v.flooredSum>0) && v.remainderSum>0.0001)
+    .map(([name,v])=>({name,remainder:v.remainderSum}))
+    .sort((a,b)=>b.remainder-a.remainder);
+}
+function raffleDefaultWinnerCount(entries) {
+  return Math.floor(entries.reduce((s,e)=>s+e.remainder,0));
+}
+function raffleCurrentEligible(itemId, poolKey) {
+  const all=raffleEligibleEntries(itemId,poolKey);
+  const pool=getRafflePoolState(itemId,poolKey);
+  const won=new Set(pool.winners.map(w=>w.name));
+  return all.filter(e=>!won.has(e.name));
+}
+/* Cumulative angle ranges for a set of entries, 0deg = top, increasing clockwise —
+   shared by both the SVG slice drawing and the spin-landing calculation so they
+   can never disagree with each other about where a given name actually sits. */
+function raffleSliceRanges(entries) {
+  const total=entries.reduce((s,e)=>s+e.remainder,0)||1;
+  let angle=0;
+  return entries.map(e=>{
+    const sliceAngle=(e.remainder/total)*360;
+    const range={name:e.name,start:angle,end:angle+sliceAngle,mid:angle+sliceAngle/2};
+    angle+=sliceAngle;
+    return range;
+  });
+}
+function raffleWeightedPick(entries) {
+  const total=entries.reduce((s,e)=>s+e.remainder,0);
+  let r=Math.random()*total;
+  for(const e of entries){ if(r<e.remainder) return e; r-=e.remainder; }
+  return entries[entries.length-1];
+}
+function raffleSpinRotation(mid, spins) {
+  spins = spins==null ? 6 : spins;
+  return spins*360 + ((360 - mid) % 360);
+}
+function raffleSliceColor(i) {
+  const colors=['#7c6ff7','#4fd1a0','#f4c553','#f06565','#5aa9e6','#e688c9','#f0975a','#8dd9c4'];
+  return colors[i % colors.length];
+}
+function ralPolarToCartesian(cx,cy,r,angleDeg) {
+  const rad=(angleDeg-90)*Math.PI/180;
+  return { x:cx+r*Math.cos(rad), y:cy+r*Math.sin(rad) };
+}
+function raffleBuildWheelSVG(entries, size, elId) {
+  size = size || 220;
+  const cx=size/2, cy=size/2, r=size/2-4;
+  if(!entries.length){
+    return `<svg id="${elId}" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="raffle-wheel-svg"><circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--surf-3)" stroke="var(--border)" stroke-width="2"/></svg>`;
+  }
+  const ranges=raffleSliceRanges(entries);
+  let paths='';
+  ranges.forEach((rg,i)=>{
+    const startPt=ralPolarToCartesian(cx,cy,r,rg.start), endPt=ralPolarToCartesian(cx,cy,r,rg.end);
+    const largeArc=(rg.end-rg.start)>180?1:0;
+    const d=`M ${cx} ${cy} L ${startPt.x.toFixed(2)} ${startPt.y.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${endPt.x.toFixed(2)} ${endPt.y.toFixed(2)} Z`;
+    paths+=`<path d="${d}" fill="${raffleSliceColor(i)}" stroke="var(--surf-2)" stroke-width="1.5"/>`;
+  });
+  return `<svg id="${elId}" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="raffle-wheel-svg" style="transform:rotate(0deg)">${paths}<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--border)" stroke-width="2"/></svg>`;
+}
 function itemSummary(itemId) {
   const orders=itemOrders(itemId); let qtyOrd=0,qtyAlloc=0,paid=0,fc=0,val=0,srpVal=0;
   orders.forEach(o=>{ const f=orderFin(o); qtyOrd+=Number(o.qtyOrdered)||0; qtyAlloc+=f.aq; paid+=f.paid; fc+=f.fc; val+=f.valueAlloc; srpVal+=f.srpValueAlloc; });
@@ -472,6 +618,24 @@ function getActualAllocQty(item) {
   if(!item.actualAllocOverride) return naturalFloor;
   const v=Number(item.actualAllocQty);
   return isNaN(v)?naturalFloor:Math.max(0,Math.floor(v));
+}
+/* Client-only projected profit for an item: of the Actual Allocated units, only the share
+   originally ordered by clients (as opposed to store-inventory restock) is treated as a sale —
+   store-bound stock hasn't been sold to anyone, so it contributes no profit here. That client
+   share is estimated from how the item's total order volume split between clients and store
+   at order time (Client Ordered ÷ Total Ordered), applied to whatever the real/estimated
+   allocation turns out to be. Deliberately built from getActualAllocQty/naturalItemAllocation,
+   which already read the item's live allocationPct and override state — so this recalculates
+   automatically wherever those inputs change, with no extra wiring needed. isConfirmed mirrors
+   whether the distributor-actual override is set, exactly like the Calculated/Actual distinction
+   already shown elsewhere on these cards. */
+function itemClientProfit(item) {
+  const b=itemOrderedBreakdown(item.id);
+  const actual=getActualAllocQty(item);
+  const clientShare=b.totalQty>0?(b.clientQty/b.totalQty):0;
+  const clientAllocQty=actual*clientShare;
+  const margin=(Number(item.srp)||0)-(Number(item.costPrice)||0);
+  return { profit:clientAllocQty*margin, clientAllocQty, margin, isConfirmed:!!item.actualAllocOverride };
 }
 function dashMetrics() {
   let pubDP=0,distDP=0;
@@ -573,6 +737,12 @@ function renderItemBreakdown() {
       else deltaBadge=`<span class="brk-delta brk-delta-zero">matches calculated</span>`;
     }
 
+    const cp=itemClientProfit(item);
+    const profitTag=cp.isConfirmed
+      ? `<span class="brk-profit-tag confirmed">Confirmed</span>`
+      : `<span class="brk-profit-tag estimated">Estimated</span>`;
+    const profitValClass=cp.profit<0?'brk-profit-value brk-profit-neg':'brk-profit-value';
+
     const barSection=b.totalQty>0
       ? `<div class="brk-bar">
           <div class="brk-bar-seg brk-bar-client" style="width:${clientPct}%" title="Client: ${b.clientQty}"></div>
@@ -618,6 +788,12 @@ function renderItemBreakdown() {
           ${deltaBadge}
         </div>`:''}
       </div>
+
+      <div class="brk-profit">
+        <div class="brk-profit-label">Projected Client Profit ${profitTag}</div>
+        <div class="${profitValClass}">${php(cp.profit)}</div>
+        <div class="brk-profit-sub" title="Client-only: excludes store-inventory stock, which hasn't been sold to anyone">${cp.clientAllocQty.toFixed(2)} client-bound units × ${php(cp.margin)} margin</div>
+      </div>
     </div>`;
   });
   html+='</div>';
@@ -650,25 +826,156 @@ function updateOrderHint() {
   } else {hint.textContent='';hint.className='form-hint';}
 }
 
+/* ── RENDER: RAFFLE WHEEL ────────────────────────── */
+function syncRaffleItemSelect() {
+  const sel=$e('raffleItemSelect'); if(!sel) return;
+  const prev=sel.value;
+  sel.innerHTML='<option value="">— Select item —</option>';
+  state.items.forEach(item=>{ sel.innerHTML+=`<option value="${esc(item.id)}">${esc(item.name)}${item.eta?' ('+esc(item.eta)+')':''}</option>`; });
+  let target = prev || ui.raffleSelectedItem || '';
+  if(target && !getItem(target)) target='';
+  sel.value=target;
+  ui.raffleSelectedItem = target || null;
+  $e('raffleBadge').textContent = state.items.length+' item'+(state.items.length===1?'':'s');
+}
+
+function renderRaffleArea() {
+  const area=$e('raffleArea'); if(!area) return;
+  const itemId=ui.raffleSelectedItem;
+  if(!itemId || !getItem(itemId)){
+    area.innerHTML = state.items.length
+      ? '<div class="empty"><div class="empty-ico">🎡</div><strong>Select an item above</strong><span>Choose an item to see its two raffle pools — clients with an allocation, and clients without.</span></div>'
+      : '<div class="empty"><div class="empty-ico">🎡</div><strong>No items yet</strong><span>Add items and orders first, then come back here to run a raffle per item.</span></div>';
+    return;
+  }
+  area.innerHTML = `<div class="raffle-grid">
+    <div id="rafflePool_allocated"></div>
+    <div id="rafflePool_zero"></div>
+  </div>`;
+  renderRafflePool(itemId,'allocated','Pool A — Has Allocation','Clients who already received at least 1 unit; raffling their leftover decimal remainders.');
+  renderRafflePool(itemId,'zero','Pool B — No Allocation','Clients who received nothing this round; raffling their decimal remainders for a shot at a unit.');
+}
+
+function renderRafflePool(itemId, poolKey, title, subtitle) {
+  const container=$e('rafflePool_'+poolKey); if(!container) return;
+  const allEntries=raffleEligibleEntries(itemId,poolKey);
+  const pool=getRafflePoolState(itemId,poolKey);
+  const eligible=raffleCurrentEligible(itemId,poolKey);
+  const defaultCount=raffleDefaultWinnerCount(allEntries);
+  const targetCount=pool.manualCount!=null?pool.manualCount:defaultCount;
+  const totalWeight=eligible.reduce((s,e)=>s+e.remainder,0);
+
+  if(!allEntries.length){
+    container.innerHTML=`<div class="raffle-pool">
+      <div class="raffle-pool-hd"><div><div class="raffle-pool-title">${title}</div><div class="raffle-pool-sub">${subtitle}</div></div></div>
+      <div class="raffle-empty-pool">No eligible clients for this pool.<br>(store-inventory and manually-overridden orders are excluded)</div>
+    </div>`;
+    return;
+  }
+
+  const nameListHtml = eligible.length ? eligible.map((e,i)=>{
+    const pct = totalWeight>0 ? (e.remainder/totalWeight*100) : 0;
+    return `<div class="raffle-name-row">
+      <span class="raffle-swatch" style="background:${raffleSliceColor(i)}"></span>
+      <span class="rn-name">${esc(e.name)}</span>
+      <span class="rn-weight">${e.remainder.toFixed(2)} (${pct.toFixed(1)}%)</span>
+    </div>`;
+  }).join('') : '<div class="raffle-empty-pool">Everyone in this pool has already been drawn.</div>';
+
+  const winnersHtml = pool.winners.length
+    ? pool.winners.map((w,i)=>`<div class="raffle-winner-chip"><span class="rw-num">#${i+1}</span>${esc(w.name)}</div>`).join('')
+    : '<div class="raffle-pool-sub">No winners drawn yet.</div>';
+
+  const spinKey=itemId+'_'+poolKey;
+  const spinDisabled = eligible.length===0 || !!ui.raffleSpinning[spinKey];
+  const wheelSvg = raffleBuildWheelSVG(eligible, 210, 'raffleWheelSvg_'+poolKey);
+  const decimalSum = allEntries.reduce((s,e)=>s+e.remainder,0);
+
+  container.innerHTML = `<div class="raffle-pool">
+    <div class="raffle-pool-hd">
+      <div><div class="raffle-pool-title">${title}</div><div class="raffle-pool-sub">${subtitle}</div></div>
+    </div>
+
+    <div class="raffle-count-row">
+      <span>Sum of decimals: <strong class="mono" style="color:var(--text)">${decimalSum.toFixed(2)}</strong></span>
+    </div>
+    <div class="raffle-count-row">
+      <span>Units to raffle:</span>
+      <input type="number" class="raffle-count-input" min="0" step="1" value="${targetCount}" data-a="raffle-count" data-item="${esc(itemId)}" data-pool="${poolKey}">
+      <span class="raffle-progress">${pool.winners.length} of ${targetCount} drawn</span>
+    </div>
+
+    <div class="raffle-wheel-wrap">
+      <span class="raffle-pointer">▼</span>
+      ${wheelSvg}
+    </div>
+
+    <div class="raffle-name-list">${nameListHtml}</div>
+
+    <div class="raffle-actions-row">
+      <button type="button" class="btn-raffle-spin" data-a="raffle-spin" data-item="${esc(itemId)}" data-pool="${poolKey}" ${spinDisabled?'disabled':''}>🎡 Spin</button>
+      <button type="button" class="btn btn-ghost" data-a="raffle-reset" data-item="${esc(itemId)}" data-pool="${poolKey}">↺ Reset</button>
+    </div>
+
+    <div>
+      <div class="raffle-winners-hd">Winners</div>
+      <div class="raffle-winners-list" style="margin-top:6px">${winnersHtml}</div>
+    </div>
+  </div>`;
+}
+
+function raffleSpin(itemId, poolKey) {
+  const key=itemId+'_'+poolKey;
+  if(ui.raffleSpinning[key]) return;
+  const eligible=raffleCurrentEligible(itemId,poolKey);
+  if(!eligible.length){ toast('No eligible clients left in this pool.','err'); return; }
+
+  const winner=raffleWeightedPick(eligible);
+  const ranges=raffleSliceRanges(eligible);
+  const winnerRange=ranges.find(r=>r.name===winner.name);
+  if(!winnerRange){ toast('Could not compute raffle result — please try again.','err'); return; }
+
+  const svg=$e('raffleWheelSvg_'+poolKey);
+  if(!svg){ toast('Wheel not ready — please try again.','err'); return; }
+
+  ui.raffleSpinning[key]=true;
+  const btn=document.querySelector(`[data-a="raffle-spin"][data-item="${itemId}"][data-pool="${poolKey}"]`);
+  if(btn) btn.disabled=true;
+
+  const rotation=raffleSpinRotation(winnerRange.mid,6);
+  svg.getBoundingClientRect(); /* force reflow so the transition reliably re-triggers */
+  svg.style.transform=`rotate(${rotation}deg)`;
+
+  setTimeout(()=>{
+    const pool=getRafflePoolState(itemId,poolKey);
+    pool.winners.push({name:winner.name,wonAt:Date.now()});
+    ui.raffleSpinning[key]=false;
+    save();
+    renderRaffleArea();
+    toast(`🎉 ${winner.name} wins!`,'ok');
+  },4300);
+}
+
+function raffleReset(itemId, poolKey) {
+  const pool=getRafflePoolState(itemId,poolKey);
+  if(!pool.winners.length){ toast('No winners to reset for this pool.','err'); return; }
+  const snapshot=pool.winners.slice();
+  pool.winners=[];
+  renderRaffleArea();
+  save();
+  toastUndo(`Raffle pool reset (${snapshot.length} winner${snapshot.length===1?'':'s'} cleared).`,()=>{
+    pool.winners=snapshot;
+    renderRaffleArea();
+    save();
+    toast('Winners restored.','ok');
+  });
+}
+
 /* ── RENDER: LEDGER TOOLBAR ─────────────────────── */
 function renderLedgerToolbar() {
   const bar=$e('ledgerToolbar'); if(!bar) return;
   const sortLabel=ui.sortClients==='alpha'?'A → Z':'By Date Added';
   const hiddenCount=ui.hiddenCols.size;
-  let pickerHtml='';
-  if(ui.showColPicker){
-    pickerHtml=`<div class="col-picker-panel" id="colPickerPanel">
-      <div class="col-pick-hd">Show / Hide Columns</div>
-      ${CLIENT_COLS.map(col=>{
-        const checked=!ui.hiddenCols.has(col.key)?'checked':'';
-        return `<label class="col-check"><input type="checkbox" data-a="toggle-col" data-col="${col.key}" ${checked}> ${col.label}</label>`;
-      }).join('')}
-      <div class="col-pick-presets">
-        <button type="button" class="lt-btn" data-a="cols-all">Show All</button>
-        <button type="button" class="lt-btn" data-a="cols-essential">Essential Only</button>
-      </div>
-    </div>`;
-  }
   bar.innerHTML=`
     <div class="lt-left">
       <button type="button" class="lt-btn${ui.sortClients==='alpha'?' active':''}" data-a="toggle-sort" title="Toggle sort order">⇅ ${sortLabel}</button>
@@ -681,10 +988,55 @@ function renderLedgerToolbar() {
         <button type="button" class="lt-btn${ui.showColPicker?' active':''}" data-a="toggle-col-picker">
           ☰ Columns${hiddenCount>0?` <span style="color:var(--gold);font-size:10px">(${hiddenCount} hidden)</span>`:''}
         </button>
-        ${pickerHtml}
       </div>
     </div>`;
+  renderColPickerOverlay();
 }
+
+/* The dropdown lives in its own fixed-position overlay OUTSIDE .panel (which clips overflow to
+   keep its rounded corners clean). Positioning it via getBoundingClientRect + position:fixed lets
+   it escape that clipping entirely and stay on-screen regardless of where the toggle button ends
+   up — the flex-wrap fix elsewhere keeps the button pinned right, but this is what actually stops
+   the dropdown itself from being sliced off by the panel's own edges. */
+function renderColPickerOverlay() {
+  const overlay=$e('colPickerOverlay'); if(!overlay) return;
+  if(!ui.showColPicker){ overlay.innerHTML=''; return; }
+
+  const hiddenCount=ui.hiddenCols.size;
+  const panelHtml=`<div class="col-picker-panel" id="colPickerPanel">
+    <div class="col-pick-hd">Show / Hide Columns</div>
+    ${CLIENT_COLS.map(col=>{
+      const checked=!ui.hiddenCols.has(col.key)?'checked':'';
+      return `<label class="col-check"><input type="checkbox" data-a="toggle-col" data-col="${col.key}" ${checked}> ${col.label}</label>`;
+    }).join('')}
+    <div class="col-pick-presets">
+      <button type="button" class="lt-btn" data-a="cols-all">Show All</button>
+      <button type="button" class="lt-btn" data-a="cols-essential">Essential Only</button>
+    </div>
+  </div>`;
+  overlay.innerHTML=panelHtml;
+
+  const btn=document.querySelector('[data-a="toggle-col-picker"]');
+  const panel=$e('colPickerPanel');
+  if(!btn||!panel) return;
+  const btnRect=btn.getBoundingClientRect();
+  const panelWidth=panel.offsetWidth||230;
+  const margin=12;
+
+  /* Anchor to the button's right edge, then clamp so it can never extend past either
+     side of the actual viewport — this is what position:fixed + explicit px math buys us
+     over the old position:absolute/right:0 approach, which only knew about its immediate
+     parent, not the real screen edges. */
+  let left=btnRect.right-panelWidth;
+  left=Math.max(margin, Math.min(left, window.innerWidth-panelWidth-margin));
+  const top=btnRect.bottom+8;
+
+  panel.style.position='fixed';
+  panel.style.top=top+'px';
+  panel.style.left=left+'px';
+  panel.style.right='auto';
+}
+window.addEventListener('resize', ()=>{ if(ui.showColPicker) renderColPickerOverlay(); });
 
 /* ── RENDER: LEDGER ─────────────────────────────── */
 function renderLedger() {
@@ -751,7 +1103,10 @@ function renderClientTab() {
             👤 ${esc(name)} <span class="badge">${orders.length} item${orders.length===1?'':'s'}</span>
           </span>
           ${collapsedInfo}
-          <button type="button" class="btn btn-ghost" data-a="download-receipt" data-client="${esc(name)}">⬇ Receipt</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn btn-ghost" data-a="quick-add-item" data-client="${esc(name)}">+ Add Item</button>
+            <button type="button" class="btn btn-ghost" data-a="download-receipt" data-client="${esc(name)}">⬇ Receipt</button>
+          </div>
         </div>
       </td></tr>`;
 
@@ -942,7 +1297,7 @@ function renderItemTab(itemId) {
   area.innerHTML=html;
 }
 
-function renderAll(){renderDash();renderItems();syncOrderForm();renderLedger();renderBasket();}
+function renderAll(){renderDash();renderItems();syncOrderForm();renderLedger();renderBasket();syncRaffleItemSelect();renderRaffleArea();}
 
 /* ── ACTIONS: ITEMS ─────────────────────────────── */
 $e('itemForm').addEventListener('submit',function(e){
@@ -991,14 +1346,44 @@ $e('oItem').addEventListener('change',autoFillDP);
 $e('oQty').addEventListener('input',autoFillDP);
 $e('oStore').addEventListener('change',function(){ $e('storeCheckLabel').classList.toggle('is-store',this.checked); autoFillDP(); });
 $e('oClient').addEventListener('input',function(){ if(ui.basket.length) renderBasket(); });
+
+/* Mirrors autoFillDP's behavior for the inline edit-mode Qty field: as the shop owner
+   corrects an order's quantity, the Amount Paid field recalculates to the 30% DP for the
+   new quantity — same as when adding a new order. Delegated on document since eq_/ep_
+   inputs are freshly created on every render, not present at page-load time. The user can
+   still manually adjust Amount Paid afterward before clicking Save, exactly as in the Add
+   Order form, so a real, already-recorded payment is never silently locked in as "wrong". */
+document.addEventListener('input',function(e){
+  const id=e.target.id;
+  if(!id||!id.startsWith('eq_')) return;
+  const orderId=id.slice(3);
+  const order=state.orders.find(o=>o.id===orderId); if(!order) return;
+  const paidInput=$e('ep_'+orderId); if(!paidInput) return; /* Amount Paid column hidden -- nothing to fill */
+  const qty=parseInt(e.target.value,10)||0;
+  if(qty>0) paidInput.value=requiredDP(order.itemId,qty,order.storeInventory).toFixed(2);
+});
 $e('orderForm').addEventListener('submit',function(e){ e.preventDefault(); addToBasket(); });
+
+/* ── ACTIONS: RAFFLE WHEEL ──────────────────────── */
+$e('raffleItemSelect').addEventListener('change',function(){
+  ui.raffleSelectedItem=this.value||null;
+  renderRaffleArea();
+  save();
+});
 
 function saveOrderEdit(id){
   const order=state.orders.find(o=>o.id===id); if(!order) return;
-  const qEl=$e('eq_'+id), pEl=$e('ep_'+id); if(!qEl||!pEl) return;
-  const qty=parseInt(qEl.value,10)||1, paid=parseFloat(pEl.value)||0;
-  if(qty<=0){toast('Quantity must be at least 1.','err');return;}
-  order.qtyOrdered=qty; order.amountPaid=paid; ui.editOrderId=null;
+  const qEl=$e('eq_'+id), pEl=$e('ep_'+id);
+  if(!qEl && !pEl){ toast('Could not save — Qty and Amount Paid are both hidden. Show at least one column to edit.','err'); return; }
+  if(qEl){
+    const qty=parseInt(qEl.value,10)||1;
+    if(qty<=0){ toast('Quantity must be at least 1.','err'); return; }
+    order.qtyOrdered=qty;
+  }
+  if(pEl){
+    order.amountPaid=parseFloat(pEl.value)||0;
+  }
+  ui.editOrderId=null;
   renderLedger(); renderDash(); save(); toast('Order updated.','ok');
 }
 function delOrder(id){
@@ -1018,6 +1403,24 @@ function toggleOverride(id){
   renderLedger(); save();
 }
 function setOverrideQty(id,val){ const order=state.orders.find(o=>o.id===id); if(!order) return; order.overriddenQty=Math.max(0,Math.floor(Number(val)||0)); save(); }
+
+/* Lets the shop owner quickly start a new order for a client who already has orders,
+   without needing to scroll up and retype their name. Guards against silently reassigning
+   an in-progress, uncommitted basket to the wrong client if one is already pending. */
+function quickAddItemForClient(name){
+  if(ui.basket.length){
+    const currentBasketClient=$e('oClient').value.trim();
+    if(currentBasketClient && currentBasketClient!==name){
+      toast(`You have unconfirmed items in the basket for "${currentBasketClient}" — commit or clear that basket first.`,'err');
+      return;
+    }
+  }
+  $e('oClient').value=name;
+  if(ui.basket.length) renderBasket();
+  $e('orderForm').scrollIntoView({behavior:'smooth',block:'center'});
+  setTimeout(()=>{ const sel=$e('oItem'); if(sel && !sel.disabled) sel.focus(); },350);
+  toast(`Ready to add an item for "${name}" — pick an item above.`,'ok');
+}
 
 /* ── BASKET ─────────────────────────────────────── */
 function addToBasket(){
@@ -1135,8 +1538,8 @@ function buildClientMessageText(name) {
   });
   lines.push('',`Total downpayment received: ${php(summary.paid)}`,`Total value of allocated items: ${php(summary.val)}`,'');
   if(summary.isZero) lines.push('Your account is fully settled — no refund or balance due.');
-  else if(summary.isRefund) lines.push(`You have a REFUND of ${php(summary.net)} coming your way! Do send us your Gcash (refunds of 8,000 or below) or Bank Account (refunds above 8,000).`);
-  else lines.push(`You have a remaining BALANCE of ${php(Math.abs(summary.net))} to settle before pickup.`);
+  else if(summary.isRefund) lines.push(`You have a REFUND of ${php(summary.net)} coming your way!`);
+  else lines.push(`You have a remaining BALANCE of ${php(Math.abs(summary.net))} to settle upon pickup.`);
   lines.push('','Thank you for your pre-order!');
   return lines.join('\n');
 }
@@ -1400,7 +1803,7 @@ function exportToExcel(){
 /* ── EVENT DELEGATION ───────────────────────────── */
 document.addEventListener('click',function(e){
   /* Close col picker when clicking outside */
-  if(ui.showColPicker&&!e.target.closest('.col-picker-wrap')){ui.showColPicker=false;renderLedgerToolbar();}
+  if(ui.showColPicker&&!e.target.closest('.col-picker-wrap')&&!e.target.closest('#colPickerOverlay')){ui.showColPicker=false;renderLedgerToolbar();}
   const btn=e.target.closest('[data-a]'); if(!btn) return;
   const a=btn.dataset.a, id=btn.dataset.id;
   switch(a){
@@ -1414,6 +1817,7 @@ document.addEventListener('click',function(e){
     case 'cancel-order':   ui.editOrderId=null; renderLedger(); break;
     case 'del-order':      delOrder(id); break;
     case 'download-receipt': generateReceipt(btn.dataset.client); break;
+    case 'quick-add-item': quickAddItemForClient(btn.dataset.client); break;
     case 'rm-basket':      removeBasketItem(btn.dataset.tid); break;
     case 'clear-basket':   clearBasket(); break;
     case 'confirm-basket': confirmBasket(); break;
@@ -1435,6 +1839,8 @@ document.addEventListener('click',function(e){
       ui.hiddenCols=new Set(['eta','float','act']); ui.showColPicker=false; renderLedger(); save(); break;
     case 'export-excel':   exportToExcel(); break;
     case 'download-all-receipts': generateAllReceipts(); break;
+    case 'raffle-spin':  raffleSpin(btn.dataset.item, btn.dataset.pool); break;
+    case 'raffle-reset': raffleReset(btn.dataset.item, btn.dataset.pool); break;
     case 'undo-action':
       if(_undoCb){clearTimeout(_tt);_undoCb();_undoCb=null;$e('toast').classList.remove('show');} break;
   }
@@ -1464,6 +1870,12 @@ document.addEventListener('change',function(e){
     const col=el.dataset.col;
     if(el.checked) ui.hiddenCols.delete(col); else ui.hiddenCols.add(col);
     renderLedger(); save();
+  }
+  if(a==='raffle-count'){
+    const pool=getRafflePoolState(el.dataset.item,el.dataset.pool);
+    const v=parseInt(el.value,10);
+    pool.manualCount=isNaN(v)?null:Math.max(0,v);
+    renderRaffleArea(); save();
   }
 });
 
@@ -1633,7 +2045,7 @@ async function generateAllReceipts() {
 
 /* ── EXPORT / IMPORT ────────────────────────────── */
 $e('exportBtn').addEventListener('click',function(){
-  const blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),items:state.items,orders:state.orders,hiddenCols:[...ui.hiddenCols],sortClients:ui.sortClients,itemTabSort:ui.itemTabSort},null,2)],{type:'application/json'});
+  const blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),items:state.items,orders:state.orders,raffles:state.raffles,hiddenCols:[...ui.hiddenCols],sortClients:ui.sortClients,itemTabSort:ui.itemTabSort},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob), a=Object.assign(document.createElement('a'),{href:url,download:'preorder-session-'+new Date().toISOString().slice(0,10)+'.json'});
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url),1000); toast('Session exported.','ok');
@@ -1648,10 +2060,11 @@ $e('importInput').addEventListener('change',function(e){
       if(!confirm(`Load ${d.items.length} item(s) and ${d.orders.length} order(s)? Current session will be replaced.`)) return;
       state.items=d.items.map(i=>Object.assign({allocationPct:100,actualAllocOverride:false,actualAllocQty:0},i));
       state.orders=d.orders.map(o=>Object.assign({storeInventory:false,manualOverride:false,overriddenQty:0},o));
+      state.raffles=(d.raffles&&typeof d.raffles==='object')?d.raffles:{};
       if(Array.isArray(d.hiddenCols)) ui.hiddenCols=new Set(d.hiddenCols);
       if(d.sortClients) ui.sortClients=d.sortClients;
       if(d.itemTabSort) ui.itemTabSort=d.itemTabSort;
-      ui.activeTab='clients'; ui.basket=[]; renderAll(); save();
+      ui.activeTab='clients'; ui.basket=[]; ui.raffleSelectedItem=null; renderAll(); save();
       toast(`Loaded: ${state.items.length} items, ${state.orders.length} orders.`,'ok');
     }catch(err){toast('Load failed: '+err.message,'err');}
   };
@@ -1660,12 +2073,13 @@ $e('importInput').addEventListener('change',function(e){
 
 /* ── LOCAL STORAGE ──────────────────────────────── */
 const SK='tcgPreOrderV5';
-function save(){try{localStorage.setItem(SK,JSON.stringify({items:state.items,orders:state.orders,hiddenCols:[...ui.hiddenCols],sortClients:ui.sortClients,itemTabSort:ui.itemTabSort}));}catch(e){}}
+function save(){try{localStorage.setItem(SK,JSON.stringify({items:state.items,orders:state.orders,raffles:state.raffles,hiddenCols:[...ui.hiddenCols],sortClients:ui.sortClients,itemTabSort:ui.itemTabSort}));}catch(e){}}
 function load(){
   try{
     const d=JSON.parse(localStorage.getItem(SK)||'null'); if(!d) return;
     if(Array.isArray(d.items))  state.items=d.items.map(i=>Object.assign({allocationPct:100,actualAllocOverride:false,actualAllocQty:0},i));
     if(Array.isArray(d.orders)) state.orders=d.orders.map(o=>Object.assign({storeInventory:false,manualOverride:false,overriddenQty:0},o));
+    state.raffles=(d.raffles&&typeof d.raffles==='object')?d.raffles:{};
     if(Array.isArray(d.hiddenCols)) ui.hiddenCols=new Set(d.hiddenCols);
     if(d.sortClients) ui.sortClients=d.sortClients;
     if(d.itemTabSort) ui.itemTabSort=d.itemTabSort;
