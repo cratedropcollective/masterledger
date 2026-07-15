@@ -1105,6 +1105,7 @@ function renderClientTab() {
           ${collapsedInfo}
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button type="button" class="btn btn-ghost" data-a="quick-add-item" data-client="${esc(name)}">+ Add Item</button>
+            <button type="button" class="btn btn-ghost" data-a="copy-client-message" data-client="${esc(name)}">📋 Copy Update</button>
             <button type="button" class="btn btn-ghost" data-a="download-receipt" data-client="${esc(name)}">⬇ Receipt</button>
           </div>
         </div>
@@ -1525,9 +1526,10 @@ function refundBalanceFormula(paidRef,valueRef){
 }
 
 /* Builds a ready-to-copy-paste message summarizing one client's allocation, payment, and
-   refund/balance status. Used ONLY in the Excel export's Client Message column — never
-   shown anywhere in the live UI. Deleted-item orders are silently omitted from the itemized
-   list (matching the receipt generator's behavior) since this text is meant to be sent as-is. */
+   refund/balance status. Shared by the Excel export's Client Message column AND the live
+   ledger's "📋 Copy Update" button, so both always say exactly the same thing. Deleted-item
+   orders are silently omitted from the itemized list (matching the receipt generator's
+   behavior) since this text is meant to be sent to the client as-is. */
 function buildClientMessageText(name) {
   const orders=ordersForClient(name).filter(o=>getItem(o.itemId));
   const summary=clientSummary(name);
@@ -1542,6 +1544,32 @@ function buildClientMessageText(name) {
   else lines.push(`You have a remaining BALANCE of ${php(Math.abs(summary.net))} to settle upon pickup.`);
   lines.push('','Thank you for your pre-order!');
   return lines.join('\n');
+}
+
+/* Standard modern-API + fallback clipboard write, since navigator.clipboard requires a
+   secure context and isn't available in every embedding (some webviews, plain http, etc). */
+function copyTextToClipboard(text){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    return navigator.clipboard.writeText(text);
+  }
+  return new Promise((resolve,reject)=>{
+    try{
+      const ta=document.createElement('textarea');
+      ta.value=text; ta.style.position='fixed'; ta.style.left='-9999px';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      const ok=document.execCommand('copy');
+      document.body.removeChild(ta);
+      ok?resolve():reject(new Error('execCommand copy failed'));
+    }catch(e){ reject(e); }
+  });
+}
+function copyClientMessage(name){
+  const orders=ordersForClient(name);
+  if(!orders.length){ toast('No orders found for this client.','err'); return; }
+  const text=buildClientMessageText(name);
+  copyTextToClipboard(text)
+    .then(()=>toast(`Update copied for "${name}" — paste it wherever you message them.`,'ok'))
+    .catch(()=>toast('Could not copy to clipboard. Please copy manually.','err'));
 }
 
 function exportToExcel(){
@@ -1818,6 +1846,7 @@ document.addEventListener('click',function(e){
     case 'del-order':      delOrder(id); break;
     case 'download-receipt': generateReceipt(btn.dataset.client); break;
     case 'quick-add-item': quickAddItemForClient(btn.dataset.client); break;
+    case 'copy-client-message': copyClientMessage(btn.dataset.client); break;
     case 'rm-basket':      removeBasketItem(btn.dataset.tid); break;
     case 'clear-basket':   clearBasket(); break;
     case 'confirm-basket': confirmBasket(); break;
