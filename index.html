@@ -253,6 +253,12 @@ tbody tr:hover td { background:rgba(255,255,255,0.012); }
 .pill-bal { background:var(--red-s);   color:var(--red);   border:1px solid rgba(240,101,101,0.2); }
 .pill-ok  { background:var(--gold-s);  color:var(--gold);  border:1px solid rgba(244,197,83,0.2); }
 
+/* ── DISTRIBUTOR ORDERS ────────────────────────────── */
+.dist-check-tbl { min-width:520px; }
+.dist-check-tbl td, .dist-check-tbl th { white-space:nowrap; }
+.dist-check-empty-hint { color:var(--text-f); font-size:12px; margin-top:4px; }
+.po-total-chip { font-family:var(--fm); font-size:11px; color:var(--text-d); }
+
 /* ── STORE BADGE ──────────────────────────────────── */
 .si-badge { display:inline-flex; align-items:center; background:var(--gold-s); color:var(--gold); border:1px solid rgba(244,197,83,0.25); font-size:9.5px; font-weight:700; font-family:var(--fm); padding:1px 6px; border-radius:3px; margin-left:6px; text-transform:uppercase; letter-spacing:0.04em; vertical-align:middle; }
 .float-badge { display:inline-flex; align-items:center; background:var(--gold-s); color:var(--gold); border:1px solid rgba(244,197,83,0.25); font-size:9.5px; font-weight:700; font-family:var(--fm); padding:1px 6px; border-radius:3px; margin-left:6px; text-transform:uppercase; letter-spacing:0.04em; vertical-align:middle; }
@@ -346,6 +352,45 @@ body.presentation-mode .dashboard,
 body.presentation-mode .panel:not(#raffleWheelPanel) { display:none !important; }
 body.presentation-mode .app { padding-top:64px; }
 body.presentation-mode #raffleWheelPanel { max-width:900px; margin:0 auto; }
+
+/* ── FULFILLMENT MODE ─────────────────────────────── */
+#fulfillmentModeToggle.active { background:var(--green-s); border-color:var(--green); color:var(--green); }
+body.fulfillment-mode .dashboard,
+body.fulfillment-mode .panel:not(#orderLedgerPanel):not(#storeSalesPanel) { display:none !important; }
+body.fulfillment-mode #orderLedgerPanel #orderForm,
+body.fulfillment-mode #orderLedgerPanel #orderHint,
+body.fulfillment-mode #orderLedgerPanel #basketArea,
+body.fulfillment-mode #orderLedgerPanel #tabNav { display:none !important; }
+
+/* ── SESSION SWITCHER ──────────────────────────────── */
+.session-switch-wrap { position:relative; }
+.session-pill { display:inline-flex; align-items:center; gap:7px; padding:9px 14px; border-radius:var(--r-s); font-weight:500; font-size:13px; cursor:pointer; border:1px solid var(--border); background:var(--surf-2); color:var(--text); transition:all 0.14s; max-width:220px; }
+.session-pill:hover { border-color:var(--accent); color:var(--accent-l); }
+.session-pill.active { border-color:var(--accent); color:var(--accent-l); background:var(--accent-gl); }
+.session-pill-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:140px; }
+.session-pill-caret { font-size:10px; color:var(--text-f); }
+.session-panel {
+  position:fixed; z-index:220;
+  background:var(--surf-2); border:1px solid var(--border); border-radius:var(--r-s);
+  padding:12px; width:300px; max-width:calc(100vw - 32px); box-shadow:0 10px 30px rgba(0,0,0,0.5);
+  max-height:70vh; overflow-y:auto;
+}
+.session-panel-hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:8px; }
+.session-panel-title { font-size:10px; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-f); font-weight:600; }
+.session-new-btn { font-size:11px; padding:5px 10px; flex-shrink:0; }
+.session-row { display:flex; align-items:center; gap:6px; padding:9px 8px; border-radius:var(--r-xs); cursor:pointer; transition:background 0.13s; }
+.session-row:hover { background:var(--surf-3); }
+.session-row.current { background:var(--accent-gl); cursor:default; }
+.session-row-main { flex:1; min-width:0; }
+.session-row-name { font-size:13px; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.session-row.current .session-row-name { color:var(--accent-l); }
+.session-row-meta { font-size:11px; color:var(--text-d); margin-top:2px; }
+.session-row-actions { display:flex; gap:2px; flex-shrink:0; }
+.session-row-actions button { background:transparent; border:none; color:var(--text-f); cursor:pointer; padding:4px 6px; border-radius:4px; font-size:13px; transition:all 0.13s; line-height:1; }
+.session-row-actions button:hover { background:var(--surf); color:var(--text); }
+.session-row-actions button.danger:hover { color:var(--red); }
+.session-current-badge { font-size:9px; text-transform:uppercase; letter-spacing:0.05em; color:var(--accent-l); font-weight:700; flex-shrink:0; }
+.session-panel-empty { font-size:12px; color:var(--text-d); padding:10px 8px; text-align:center; }
 </style>
 </head>
 <body>
@@ -360,6 +405,12 @@ body.presentation-mode #raffleWheelPanel { max-width:900px; margin:0 auto; }
       </div>
     </div>
     <div class="header-actions">
+      <div class="session-switch-wrap">
+        <button type="button" class="session-pill" id="sessionPillBtn" data-a="toggle-session-panel" title="Switch or manage sessions">
+          📁 <span class="session-pill-name" id="sessionPillName">Session</span><span class="session-pill-caret">▾</span>
+        </button>
+      </div>
+      <button type="button" class="btn btn-secondary" id="fulfillmentModeToggle" data-a="toggle-fulfillment-mode">✅ Fulfillment Mode</button>
       <button type="button" class="btn btn-secondary" id="exportBtn">⭳ Export Session</button>
       <label class="file-label">⭱ Upload Session<input type="file" id="importInput" accept="application/json" hidden></label>
     </div>
@@ -406,7 +457,25 @@ body.presentation-mode #raffleWheelPanel { max-width:900px; margin:0 auto; }
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="distributorOrdersPanel">
+    <div class="panel-head"><div class="panel-title">📦 Distributor Orders <span class="badge" id="distBadge">0 placed</span></div></div>
+    <div class="panel-body">
+      <div id="distCrossCheckArea"></div>
+      <form id="distForm" class="form-grid">
+        <div class="ff f2"><label for="pPoNumber">PO / Order Number</label><input type="text" id="pPoNumber" class="fi" placeholder="e.g. distributor's order confirmation #" required></div>
+        <div class="ff f2"><label for="pItem">Item</label><select id="pItem" class="fi" required><option value="">— Select item —</option></select></div>
+        <div class="ff fsm"><label for="pQty">Qty Placed</label><input type="number" id="pQty" class="fi num" min="1" step="1" value="1" required></div>
+        <div class="ff fxs" style="justify-content:flex-end;align-self:flex-end">
+          <button type="submit" class="btn btn-primary">+ Add to Basket</button>
+        </div>
+      </form>
+      <div class="form-hint" id="distHint"></div>
+      <div id="distBasketArea"></div>
+      <div id="distPOListArea"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="orderLedgerPanel">
     <div class="panel-head"><div class="panel-title">📋 Order Ledger <span class="badge" id="orderBadge">0 orders</span></div></div>
     <div class="panel-body">
       <form id="orderForm" class="form-grid">
@@ -434,6 +503,28 @@ body.presentation-mode #raffleWheelPanel { max-width:900px; margin:0 auto; }
     </div>
   </div>
 
+  <div class="panel" id="storeSalesPanel">
+    <div class="panel-head"><div class="panel-title">🛍️ Store Sales &amp; Inventory <span class="badge" id="salesBadge">0 sales</span></div></div>
+    <div class="panel-body">
+      <form id="saleForm" class="form-grid">
+        <div class="ff f2"><label for="sItem">Item</label><select id="sItem" class="fi" required><option value="">— Select item —</option></select></div>
+        <div class="ff fsm"><label for="sQty">Qty Sold</label><input type="number" id="sQty" class="fi num" min="1" step="1" value="1" required></div>
+        <div class="ff fsm"><label for="sPrice">Price Sold</label><input type="number" id="sPrice" class="fi num" min="0" step="0.01" placeholder="0.00" required></div>
+        <div class="ff f2"><label for="sBuyer">Buyer</label><input type="text" id="sBuyer" class="fi" placeholder="Walk-in"></div>
+        <div class="ff f2"><label for="sNotes">Notes</label><input type="text" id="sNotes" class="fi" placeholder="optional note"></div>
+        <div class="ff fxs" style="align-self:flex-end">
+          <label class="store-check" id="saleShippedLabel"><input type="checkbox" id="sShipped"> ✅ Shipped / Picked Up</label>
+        </div>
+        <div class="ff fxs" style="justify-content:flex-end;align-self:flex-end">
+          <button type="submit" class="btn btn-primary">+ Log Sale</button>
+        </div>
+      </form>
+      <div class="form-hint" id="saleHint"></div>
+      <div id="salesStockArea"></div>
+      <div id="salesTableArea"></div>
+    </div>
+  </div>
+
   <div class="panel" id="raffleWheelPanel">
     <div class="panel-head"><div class="panel-title">🎡 Raffle Wheel <span class="badge" id="raffleBadge">0 items</span></div><button type="button" class="raffle-sound-toggle" id="raffleSoundToggle" data-a="toggle-raffle-sound">🔊 Sound On</button></div>
     <div class="panel-body">
@@ -447,6 +538,7 @@ body.presentation-mode #raffleWheelPanel { max-width:900px; margin:0 auto; }
 </div>
 
 <div id="colPickerOverlay"></div>
+<div id="sessionOverlay"></div>
 <div id="raffleWinnerPopup"></div>
 <div class="toast" id="toast"></div>
 
@@ -471,12 +563,19 @@ const COL_ALIGN = { qty:'r', alloc:'c', paid:'r', amtAlloc:'r', float:'r', refun
 const COL_STYLE = { alloc:'min-width:160px', amtAlloc:'min-width:135px', float:'min-width:130px', refund:'min-width:160px', act:'min-width:70px' };
 
 /* ── STATE ──────────────────────────────────────── */
-let state = { items:[], orders:[], raffles:{} };
+let state = { items:[], orders:[], raffles:{}, sales:[], clientFulfillmentData:{}, distributorOrders:[] };
 let ui = {
   activeTab:        'clients',
   editItemId:       null,
   editOrderId:      null,
+  editSaleId:       null,
   basket:           [],
+  distBasket:       [],          /* pending lines for the PO currently being entered in Distributor Orders */
+  collapsedPOs:     new Set(),
+  fulfillmentStatusFilter: 'all',  /* 'all' | 'pending' | 'ready' | 'shipped' — Fulfillment tab status filter */
+  fulfillmentItemFilter:   'all',  /* 'all' or an itemId — Fulfillment tab item filter */
+  fulfillmentLbcOnly:      false,  /* true = show only clients with an unshipped LBC batch pending */
+  collapsedFulfillmentClients: new Set(),   /* independent from Client Overview's own collapse state */
   hiddenCols:       new Set(['float']),   /* Float Generated hidden by default; user can re-enable via column picker */
   sortClients:      'alpha',   /* 'alpha' | 'date' */
   itemTabSort:      'date',    /* 'date' | 'qtyDesc' — order of client rows within an Item tab */
@@ -485,7 +584,11 @@ let ui = {
   raffleSelectedItem: null,    /* itemId currently shown in the Raffle Wheel panel */
   raffleSpinning:   {},        /* itemId+poolKey -> true while a spin animation is in flight, guards double-clicks */
   raffleSoundMuted: false,
-  presentationMode: false     /* "Go Live" view — hides everything except the Raffle Wheel panel */
+  presentationMode: false,    /* "Go Live" view — hides everything except the Raffle Wheel panel */
+  fulfillmentMode:  false,    /* hides everything except Order Ledger's Fulfillment tab + Store Sales & Inventory */
+  fulfillmentModePrevTab: 'clients',  /* remembers which ledger tab was open before Fulfillment Mode locked it to 'fulfillment' */
+  activeSessionId:  null,     /* id of the currently loaded session in the Session Library (see SESSION LIBRARY) */
+  showSessionPanel: false
 };
 
 /* ── UTILITIES ──────────────────────────────────── */
@@ -550,11 +653,84 @@ function clientSummary(name) {
   return {paid,val,net,fc,qtyOrd,qtyAlloc,srpVal,isRefund:net>=0,isZero:Math.abs(net)<0.005};
 }
 function itemOrders(itemId) { return state.orders.filter(o=>o.itemId===itemId).sort((a,b)=>a.createdAt-b.createdAt); }
+
+/* ── DISTRIBUTOR ORDERS ─────────────────────────── */
+function poNumbers() {
+  const nums=[...new Set(state.distributorOrders.map(o=>o.poNumber))];
+  const first={}; state.distributorOrders.forEach(o=>{ if(!first[o.poNumber]) first[o.poNumber]=o.createdAt; });
+  return nums.sort((a,b)=>(first[b]||0)-(first[a]||0));   /* newest PO first */
+}
+function linesForPO(poNumber) { return state.distributorOrders.filter(o=>o.poNumber===poNumber).sort((a,b)=>a.createdAt-b.createdAt); }
+/* Total qty placed with the distributor for a given item, across every PO logged. */
+function distributorPlacedQty(itemId) { return state.distributorOrders.filter(o=>o.itemId===itemId).reduce((s,o)=>s+(Number(o.qty)||0),0); }
 /* Same rows as itemOrders, but optionally sorted largest-to-smallest by Qty Ordered for display in the Item tab */
 function itemOrdersSorted(itemId) {
   const orders=itemOrders(itemId);
   if(ui.itemTabSort==='qtyDesc') return orders.slice().sort((a,b)=>(Number(b.qtyOrdered)||0)-(Number(a.qtyOrdered)||0));
   return orders;
+}
+
+/* ── FULFILLMENT TRACKING ──────────────────────────────────────────────
+   Tracks physical prep/ship status for CLIENT orders only (store-inventory
+   orders are stock for the shelf, not something shipped to a client — those
+   are tracked separately once sold, in the Store Sales & Inventory ledger
+   below). Deliberately reuses state.orders (prepared/shipped/shippedAt/
+   fulfillmentNote fields added to each order) rather than a separate list,
+   so it can never drift out of sync with the allocation ledger it reads. */
+function fulfillmentEligibleOrders() {
+  return state.orders.filter(o=>!o.storeInventory);
+}
+function fulfillmentSummary() {
+  const orders=fulfillmentEligibleOrders();
+  let totalUnits=0, shippedUnits=0, preparedCount=0, shippedCount=0;
+  const perItem={};
+  orders.forEach(o=>{
+    const aq=allocQty(o);
+    totalUnits+=aq;
+    if(o.prepared) preparedCount++;
+    if(o.shipped){ shippedUnits+=aq; shippedCount++; }
+    if(!perItem[o.itemId]) perItem[o.itemId]={ordered:0,shipped:0};
+    perItem[o.itemId].ordered+=aq;
+    if(o.shipped) perItem[o.itemId].shipped+=aq;
+  });
+  return {count:orders.length,totalUnits,shippedUnits,outstandingUnits:totalUnits-shippedUnits,preparedCount,shippedCount,perItem};
+}
+/* Per-client LBC shipping details (batch courier drop-off) — recipient name, contact
+   number, and address, plus whether this client ships via LBC at all. Keyed by client
+   name (like the rest of the app's client-grouping, which has no separate client
+   entity — clientName is the identity). Read-only lookups never mutate state; only an
+   actual field edit creates/updates the record, so clients who never touch LBC don't
+   clutter the saved session. */
+function fulfillmentClientLBCInfo(name) {
+  return state.clientFulfillmentData[name] || {viaLBC:false,recipientName:name,contactNumber:'',address:''};
+}
+function setClientLBCField(name,field,value) {
+  if(!state.clientFulfillmentData[name]) state.clientFulfillmentData[name]={viaLBC:false,recipientName:name,contactNumber:'',address:''};
+  state.clientFulfillmentData[name][field]=value;
+}
+/* Groups fulfillment-eligible (non-store) orders per client for the Fulfillment tab,
+   applying the active item/status filters to which ORDER ROWS show within a client,
+   while computing each client's overall progress and LBC-pending status from their
+   FULL unfiltered order set — so a status filter narrowing which rows are visible
+   never makes a client's shipped/total progress pill or LBC highlight look wrong. */
+function fulfillmentGroupedByClient() {
+  const names=clientNames().filter(name=>ordersForClient(name).some(o=>!o.storeInventory));
+  const groups=names.map(name=>{
+    const allOrders=ordersForClient(name).filter(o=>!o.storeInventory);
+    let orders=allOrders;
+    if(ui.fulfillmentItemFilter!=='all') orders=orders.filter(o=>o.itemId===ui.fulfillmentItemFilter);
+    if(ui.fulfillmentStatusFilter==='pending') orders=orders.filter(o=>!o.prepared);
+    else if(ui.fulfillmentStatusFilter==='ready') orders=orders.filter(o=>o.prepared&&!o.shipped);
+    else if(ui.fulfillmentStatusFilter==='shipped') orders=orders.filter(o=>o.shipped);
+
+    const lbcInfo=fulfillmentClientLBCInfo(name);
+    const totalUnits=allOrders.reduce((s,o)=>s+allocQty(o),0);
+    const shippedUnits=allOrders.filter(o=>o.shipped).reduce((s,o)=>s+allocQty(o),0);
+    const fullyShipped=allOrders.length>0 && allOrders.every(o=>o.shipped);
+    const lbcPending=lbcInfo.viaLBC && !fullyShipped;
+    return {name,orders,lbcInfo,totalUnits,shippedUnits,fullyShipped,lbcPending,orderCount:allOrders.length};
+  }).filter(g=>g.orders.length>0);
+  return ui.fulfillmentLbcOnly ? groups.filter(g=>g.lbcPending) : groups;
 }
 
 /* ── RAFFLE WHEEL ────────────────────────────────────────────────────────
@@ -798,6 +974,36 @@ function dashMetrics() {
   return {pubDP,distDP,float:pubDP-distDP};
 }
 
+/* ── STORE SALES & INVENTORY ──────────────────────────────────────────────
+   Tracks retail sales of store-inventory stock (items ordered with the
+   "Store Inventory" checkbox — stock for the shelf, not a specific client's
+   pre-order). Kept as its own state.sales log rather than folded into
+   state.orders, since a sale is a different kind of transaction (a walk-in
+   / retail sale, at a price that may differ from SRP) than a pre-order
+   allocation. "Units received into store stock" is computed the same way
+   the rest of the app already treats an order's actual allocation
+   (allocQty() per order, summed across storeInventory orders for this
+   item) — deliberately NOT the item-level distributor-actual-count
+   override, which is a coarser total that doesn't say how much of it is
+   store vs client. */
+function itemStoreOrderedQty(itemId) {
+  return itemOrders(itemId).filter(o=>o.storeInventory).reduce((s,o)=>s+allocQty(o),0);
+}
+function itemSalesFor(itemId) { return state.sales.filter(s=>s.itemId===itemId).sort((a,b)=>a.createdAt-b.createdAt); }
+function itemSoldQty(itemId) { return itemSalesFor(itemId).reduce((s,sale)=>s+(Number(sale.qty)||0),0); }
+function itemRemainingStock(itemId) { return itemStoreOrderedQty(itemId)-itemSoldQty(itemId); }
+function saleLineTotal(sale) { return (Number(sale.qty)||0)*(Number(sale.priceSold)||0); }
+function saleLineProfit(sale) {
+  const item=getItem(sale.itemId); if(!item) return 0;
+  return (Number(sale.qty)||0)*((Number(sale.priceSold)||0)-(Number(item.costPrice)||0));
+}
+function salesSummary() {
+  let unitsSold=0, revenue=0, profit=0, unitsInStock=0;
+  state.items.forEach(item=>{ unitsInStock+=Math.max(0,itemRemainingStock(item.id)); });
+  state.sales.forEach(sale=>{ unitsSold+=Number(sale.qty)||0; revenue+=saleLineTotal(sale); profit+=saleLineProfit(sale); });
+  return {unitsSold,revenue,profit,unitsInStock,count:state.sales.length};
+}
+
 /* ── FLOATING CAPITAL BREAKDOWN ────────────────────────────────────────── */
 function floatFundedOrders() {
   return state.orders.filter(o => o.storeInventory && o.fundedByFloat);
@@ -858,7 +1064,7 @@ function allItemSettlements() {
   }), {distributorDiff:0, clientDiff:0});
   return { rows, totals };
 }
-function ensureValidTab() { if(ui.activeTab!=='clients'&&!getItem(ui.activeTab)) ui.activeTab='clients'; }
+function ensureValidTab() { if(ui.activeTab!=='clients'&&ui.activeTab!=='fulfillment'&&!getItem(ui.activeTab)) ui.activeTab='clients'; }
 
 /* ── RENDER: DASHBOARD ──────────────────────────── */
 function renderDash() {
@@ -1136,6 +1342,29 @@ function syncPresentationMode() {
   btn.textContent = ui.presentationMode ? '✕ Exit Presentation Mode' : '🎥 Presentation Mode';
 }
 
+/* ── FULFILLMENT MODE ──────────────────────────────── */
+/* Locks the Order Ledger to its Fulfillment tab and hides every panel except
+   the Order Ledger and Store Sales & Inventory — for once orders are finalized
+   and all that's left is prepping/shipping and ringing up store stock. */
+function toggleFulfillmentMode() {
+  ui.fulfillmentMode = !ui.fulfillmentMode;
+  if (ui.fulfillmentMode) {
+    if (ui.presentationMode) { ui.presentationMode=false; syncPresentationMode(); }  /* the two hide overlapping panels — mutually exclusive */
+    ui.fulfillmentModePrevTab = ui.activeTab==='fulfillment' ? 'clients' : ui.activeTab;
+    ui.activeTab = 'fulfillment';
+  } else {
+    ui.activeTab = ui.fulfillmentModePrevTab || 'clients';   /* ensureValidTab() falls back to 'clients' if this item was since deleted */
+  }
+  save(); renderLedger(); syncFulfillmentMode();
+  if (ui.fulfillmentMode) window.scrollTo({top:0,behavior:'smooth'});
+}
+function syncFulfillmentMode() {
+  const btn=$e('fulfillmentModeToggle'); if(!btn) return;
+  document.body.classList.toggle('fulfillment-mode', ui.fulfillmentMode);
+  btn.classList.toggle('active', ui.fulfillmentMode);
+  btn.textContent = ui.fulfillmentMode ? '✕ Exit Fulfillment Mode' : '✅ Fulfillment Mode';
+}
+
 /* ── RENDER: RAFFLE WHEEL ────────────────────────── */
 function syncRaffleSoundToggle() {
   const btn=$e('raffleSoundToggle'); if(!btn) return;
@@ -1151,6 +1380,89 @@ function syncRaffleItemSelect() {
   sel.value=target;
   ui.raffleSelectedItem = target || null;
   $e('raffleBadge').textContent = state.items.length+' item'+(state.items.length===1?'':'s');
+}
+
+/* ── RENDER: DISTRIBUTOR ORDERS ────────────────────
+   "Needed" reuses itemOrderedBreakdown().totalQty — the exact same "Total Ordered" figure shown
+   in the Item Allocation Breakdown above, so the two panels can never silently disagree about
+   demand. "Placed" is the running sum of every distributor-order line logged for that SKU. */
+function syncDistForm() {
+  const sel=$e('pItem'); if(!sel) return;
+  const prev=sel.value, has=state.items.length>0;
+  sel.innerHTML='<option value="">— Select item —</option>';
+  state.items.forEach(item=>{ sel.innerHTML+=`<option value="${esc(item.id)}">${esc(item.name)}${item.eta?' ('+esc(item.eta)+')':''}</option>`; });
+  if(prev) sel.value=prev;
+  $e('distForm').querySelectorAll('input,select,button[type="submit"]').forEach(el=>el.disabled=!has);
+  const hint=$e('distHint');
+  hint.textContent = has ? '' : '⚠ Add at least one item to the Master List above before logging distributor orders.';
+  hint.className = has ? 'form-hint' : 'form-hint warn';
+  $e('distBadge').textContent = state.distributorOrders.length+' line'+(state.distributorOrders.length===1?'':'s')+' · '+poNumbers().length+' PO'+(poNumbers().length===1?'':'s');
+}
+function renderDistCrossCheck() {
+  const area=$e('distCrossCheckArea'); if(!area) return;
+  if(!state.items.length){ area.innerHTML=''; return; }
+  const rows=state.items.map(item=>{
+    const needed=itemOrderedBreakdown(item.id).totalQty, placed=distributorPlacedQty(item.id), diff=needed-placed;
+    let statusHtml;
+    if(needed===0 && placed===0) statusHtml=`<span class="td-dim">—</span>`;
+    else if(diff===0) statusHtml=`<span class="pill pill-ref">✓ Matched</span>`;
+    else if(diff>0) statusHtml=`<span class="pill pill-bal">Short ${diff}</span>`;
+    else statusHtml=`<span class="pill pill-ok">Over by ${Math.abs(diff)}</span>`;
+    return {name:item.name,eta:item.eta,needed,placed,diff,statusHtml};
+  }).sort((a,b)=>b.diff-a.diff || a.name.localeCompare(b.name));   /* biggest shortfall first */
+
+  let trs=rows.map(r=>`<tr>
+    <td class="td-bold">${esc(r.name)}</td>
+    <td class="td-dim">${esc(r.eta||'—')}</td>
+    <td class="td-r mono">${r.needed}</td>
+    <td class="td-r mono">${r.placed}</td>
+    <td class="td-r">${r.statusHtml}</td>
+  </tr>`).join('');
+
+  area.innerHTML=`<div class="tbl-wrap"><table class="dist-check-tbl">
+    <thead><tr><th>Item / SKU</th><th>ETA</th><th class="r" title="Total client + store orders for this SKU">Needed</th><th class="r" title="Total qty logged across all distributor POs below">Placed</th><th class="r">Status</th></tr></thead>
+    <tbody>${trs}</tbody></table></div>
+    <div class="dist-check-empty-hint">Sorted by biggest shortfall first — log a PO below whenever you order from the distributor.</div>`;
+}
+function renderDistPOList() {
+  const area=$e('distPOListArea'); if(!area) return;
+  const pos=poNumbers();
+  if(!pos.length){
+    const msg=state.items.length?'Log your first distributor PO using the form above.':'Add items first, then log distributor POs here.';
+    area.innerHTML=`<div class="empty"><div class="empty-ico">📦</div><strong>No distributor orders logged yet</strong><span>${msg}</span></div>`;
+    return;
+  }
+  let tbody='';
+  pos.forEach(po=>{
+    const lines=linesForPO(po), totalQty=lines.reduce((s,l)=>s+(Number(l.qty)||0),0);
+    const collapsed=ui.collapsedPOs.has(po), chevron=collapsed?'▶':'▼';
+    tbody+=`<div class="c-head${collapsed?' collapsed':''}" style="border-radius:var(--r-s);margin-bottom:${collapsed?'6':'0'}px;overflow:hidden">
+      <div style="padding:10px 13px;background:var(--surf-2);border-top:2px solid var(--accent);${collapsed?'border-top-color:var(--surf-3);opacity:0.85;':''}">
+        <div class="c-head-inner">
+          <span class="c-name">
+            <button type="button" class="collapse-btn" data-a="toggle-po-collapse" data-po="${esc(po)}" title="${collapsed?'Expand':'Collapse'}">${chevron}</button>
+            📦 ${esc(po)} <span class="badge">${lines.length} line${lines.length===1?'':'s'}</span>
+            <span class="po-total-chip">${totalQty} unit${totalQty===1?'':'s'} total · placed ${timeAgo(new Date(lines[0].createdAt).toISOString())}</span>
+          </span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn btn-ghost" data-a="del-dist-po" data-po="${esc(po)}" style="font-size:12px;padding:5px 11px">✕ Delete PO</button>
+          </div>
+        </div>
+      </div>
+      ${collapsed?'':`<div class="tbl-wrap" style="margin-top:0;border-radius:0;border-left:none;border-right:none;border-top:none">
+        <table class="dist-check-tbl"><thead><tr><th>Item / SKU</th><th class="r">Qty</th><th></th></tr></thead>
+        <tbody>${lines.map(l=>{
+          const item=getItem(l.itemId);
+          return `<tr>
+            <td class="td-bold">${item?esc(item.name):'<em style="color:var(--red)">item deleted</em>'}</td>
+            <td class="td-r mono">${l.qty}</td>
+            <td class="td-r"><button type="button" class="icon-btn del" data-a="del-dist-line" data-id="${esc(l.id)}" title="Remove line">✕</button></td>
+          </tr>`;
+        }).join('')}</tbody></table>
+      </div>`}
+    </div>`;
+  });
+  area.innerHTML=tbody;
 }
 
 function renderRaffleArea() {
@@ -1354,6 +1666,160 @@ function raffleReset(itemId, poolKey) {
   });
 }
 
+/* ── RENDER: STORE SALES & INVENTORY ────────────────────────────────── */
+function syncSaleItemSelect() {
+  const sel=$e('sItem'); if(!sel) return;
+  const prev=sel.value;
+  const eligible=state.items.filter(item=>itemStoreOrderedQty(item.id)>0);
+  sel.innerHTML='<option value="">— Select item —</option>';
+  eligible.forEach(item=>{ sel.innerHTML+=`<option value="${esc(item.id)}">${esc(item.name)} (${itemRemainingStock(item.id)} in stock)</option>`; });
+  if(prev && eligible.some(i=>i.id===prev)) sel.value=prev;
+  const has=eligible.length>0;
+  $e('saleForm').querySelectorAll('input,select,button[type="submit"]').forEach(el=>el.disabled=!has);
+  updateSaleHint();
+}
+function autoFillSalePrice() {
+  const itemId=$e('sItem').value, item=getItem(itemId);
+  if(item) $e('sPrice').value=Number(item.srp||0).toFixed(2);
+  updateSaleHint();
+}
+function updateSaleHint() {
+  const hint=$e('saleHint'); if(!hint) return;
+  const itemId=$e('sItem').value, item=getItem(itemId);
+  if(!state.items.some(i=>itemStoreOrderedQty(i.id)>0)){
+    hint.textContent='No store-inventory stock yet — check "Store Inventory" on an order to bring stock in.';
+    hint.className='form-hint warn';
+    return;
+  }
+  if(item){
+    const remaining=itemRemainingStock(item.id);
+    hint.textContent=`${remaining} unit${remaining===1?'':'s'} remaining in stock for this item.`;
+    hint.className='form-hint'+(remaining<=0?' warn':'');
+  } else { hint.textContent=''; hint.className='form-hint'; }
+}
+
+function renderStoreSalesPanel() {
+  renderSalesStockSummary();
+  renderSalesTable();
+  const summary=salesSummary();
+  $e('salesBadge').textContent=summary.count+' sale'+(summary.count===1?'':'s');
+}
+
+function renderSalesStockSummary() {
+  const area=$e('salesStockArea'); if(!area) return;
+  const summary=salesSummary();
+  let html=`<div class="brk-summary">
+    <div class="brk-stat"><span class="brk-stat-label">Units in Stock</span><span class="brk-stat-val mono">${summary.unitsInStock}</span></div>
+    <div class="brk-stat"><span class="brk-stat-label">Units Sold</span><span class="brk-stat-val mono">${summary.unitsSold}</span></div>
+    <div class="brk-stat"><span class="brk-stat-label" style="color:var(--gold)">Revenue</span><span class="brk-stat-val mono kpi-gold">${php(summary.revenue)}</span></div>
+    <div class="brk-stat"><span class="brk-stat-label" style="color:var(--green)">Profit</span><span class="brk-stat-val mono ${summary.profit>=0?'kpi-pos':'kpi-neg'}">${php(summary.profit)}</span></div>
+  </div>`;
+
+  const stockRows=state.items.filter(item=>itemStoreOrderedQty(item.id)>0||itemSoldQty(item.id)>0);
+  if(stockRows.length){
+    html+=`<div class="tbl-wrap" style="margin-top:0"><table class="item-tbl">
+      <thead><tr><th>Item</th><th class="r">Store Stock Received</th><th class="r">Sold</th><th class="r">Remaining</th></tr></thead>
+      <tbody>${stockRows.map(item=>{
+        const received=itemStoreOrderedQty(item.id), sold=itemSoldQty(item.id), remaining=received-sold;
+        return `<tr>
+          <td class="td-bold">${esc(item.name)}</td>
+          <td class="td-r mono">${received}</td>
+          <td class="td-r mono td-dim">${sold}</td>
+          <td class="td-r mono ${remaining<0?'kpi-neg':''}">${remaining}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+  }
+  area.innerHTML=html;
+}
+
+function renderSalesTable() {
+  const area=$e('salesTableArea'); if(!area) return;
+  if(!state.sales.length){
+    area.innerHTML='<div class="empty"><div class="empty-ico">🛍️</div><strong>No sales logged yet</strong><span>Use the form above to log a retail sale from your store inventory.</span></div>';
+    return;
+  }
+  const sorted=state.sales.slice().sort((a,b)=>b.createdAt-a.createdAt);
+  let rows='';
+  sorted.forEach(sale=>{
+    const item=getItem(sale.itemId), isEdit=ui.editSaleId===sale.id;
+    const iName=item?esc(item.name):'<span style="color:var(--red)">⚠ deleted</span>';
+    const lineTotal=saleLineTotal(sale);
+    const dateStr=new Date(sale.createdAt).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
+
+    if(isEdit){
+      rows+=`<tr data-sid="${esc(sale.id)}">
+        <td class="td-dim">${dateStr}</td>
+        <td class="td-bold">${iName}</td>
+        <td><input class="ci md" id="es_buyer_${esc(sale.id)}" value="${esc(sale.buyerName||'')}" placeholder="Walk-in"></td>
+        <td class="td-r"><input class="ci num sm" id="es_qty_${esc(sale.id)}" type="number" value="${esc(sale.qty)}" min="1" step="1"></td>
+        <td class="td-r"><input class="ci num sm" id="es_price_${esc(sale.id)}" type="number" value="${esc(sale.priceSold)}" min="0" step="0.01"></td>
+        <td class="td-r mono td-dim">${php(lineTotal)}</td>
+        <td class="td-c"><input type="checkbox" id="es_shipped_${esc(sale.id)}" ${sale.shipped?'checked':''} style="width:16px;height:16px;accent-color:var(--green);cursor:pointer"></td>
+        <td><input class="ci" id="es_notes_${esc(sale.id)}" style="min-width:140px" value="${esc(sale.notes||'')}" placeholder="note"></td>
+        <td class="td-r" style="white-space:nowrap"><button type="button" class="icon-btn save" data-a="save-sale" data-id="${esc(sale.id)}">✓</button> <button type="button" class="icon-btn" data-a="cancel-sale">✕</button></td>
+      </tr>`;
+    } else {
+      const shippedPill=sale.shipped?`<span class="pill pill-ok">✓ Shipped</span>`:`<span class="pill pill-bal">Pending</span>`;
+      rows+=`<tr data-sid="${esc(sale.id)}">
+        <td class="td-dim">${dateStr}</td>
+        <td class="td-bold">${iName}</td>
+        <td>${esc(sale.buyerName||'Walk-in')}</td>
+        <td class="td-r mono">${esc(sale.qty)}</td>
+        <td class="td-r mono">${php(sale.priceSold)}</td>
+        <td class="td-r mono">${php(lineTotal)}</td>
+        <td class="td-c">${shippedPill}</td>
+        <td class="td-dim">${esc(sale.notes||'—')}</td>
+        <td class="td-r" style="white-space:nowrap"><button type="button" class="icon-btn" data-a="edit-sale" data-id="${esc(sale.id)}" title="Edit">✏</button> <button type="button" class="icon-btn del" data-a="del-sale" data-id="${esc(sale.id)}" title="Delete">✕</button></td>
+      </tr>`;
+    }
+  });
+  area.innerHTML=`<div class="tbl-wrap"><table class="item-tbl">
+    <thead><tr><th>Date</th><th>Item</th><th>Buyer</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Total</th><th class="c">Shipped</th><th>Notes</th><th class="r">Actions</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+
+function addSale(){
+  const itemId=$e('sItem').value, qty=parseInt($e('sQty').value,10)||0;
+  const price=parseFloat($e('sPrice').value)||0, buyer=$e('sBuyer').value.trim()||'Walk-in';
+  const notes=$e('sNotes').value.trim(), shipped=$e('sShipped').checked;
+  if(!itemId){ toast('Select an item first.','err'); return; }
+  if(qty<=0){ toast('Quantity must be at least 1.','err'); return; }
+  const remaining=itemRemainingStock(itemId);
+  if(qty>remaining){ toast(`Only ${remaining} unit${remaining===1?'':'s'} left in stock for this item.`,'err'); return; }
+  state.sales.push({id:uid(),itemId,qty,priceSold:price,buyerName:buyer,shipped,notes,createdAt:Date.now()});
+  $e('saleForm').reset(); $e('sQty').value=1; $e('sShipped').checked=false;
+  renderStoreSalesPanel(); syncSaleItemSelect(); save();
+  toast('Sale logged.','ok');
+}
+function editSale(id){ ui.editSaleId=id; renderSalesTable(); }
+function cancelSaleEdit(){ ui.editSaleId=null; renderSalesTable(); }
+function saveSaleEdit(id){
+  const sale=state.sales.find(s=>s.id===id); if(!sale) return;
+  const buyerEl=$e('es_buyer_'+id), qtyEl=$e('es_qty_'+id), priceEl=$e('es_price_'+id), shippedEl=$e('es_shipped_'+id), notesEl=$e('es_notes_'+id);
+  const qty=parseInt(qtyEl.value,10)||1;
+  if(qty<=0){ toast('Quantity must be at least 1.','err'); return; }
+  const otherSold=itemSoldQty(sale.itemId)-(Number(sale.qty)||0);
+  const available=itemStoreOrderedQty(sale.itemId)-otherSold;
+  if(qty>available){ toast(`Only ${available} unit${available===1?'':'s'} available for this item.`,'err'); return; }
+  sale.qty=qty;
+  sale.priceSold=parseFloat(priceEl.value)||0;
+  sale.buyerName=buyerEl.value.trim()||'Walk-in';
+  sale.shipped=shippedEl.checked;
+  sale.notes=notesEl.value.trim();
+  ui.editSaleId=null;
+  renderStoreSalesPanel(); syncSaleItemSelect(); save(); toast('Sale updated.','ok');
+}
+function delSale(id){
+  const idx=state.sales.findIndex(s=>s.id===id); if(idx===-1) return;
+  const sale=state.sales[idx], item=getItem(sale.itemId);
+  state.sales.splice(idx,1);
+  renderStoreSalesPanel(); syncSaleItemSelect(); save();
+  toastUndo(`Sale removed${item?' — '+item.name:''}.`,()=>{
+    state.sales.splice(idx,0,sale); renderStoreSalesPanel(); syncSaleItemSelect(); save(); toast('Sale restored.','ok');
+  });
+}
+
 /* ── RENDER: LEDGER TOOLBAR ─────────────────────── */
 function renderLedgerToolbar() {
   const bar=$e('ledgerToolbar'); if(!bar) return;
@@ -1428,10 +1894,13 @@ function renderLedger() {
   renderTabNav();
   renderTabContent();
   renderItemBreakdown();   /* orders & item-alloc changes always affect this dashboard too */
+  renderDistCrossCheck();  /* client/store order changes shift "Needed" in the distributor cross-check too */
 }
 function renderTabNav() {
-  const nav=$e('tabNav'), isC=ui.activeTab==='clients';
+  const nav=$e('tabNav'), isC=ui.activeTab==='clients', isF=ui.activeTab==='fulfillment';
+  const fSummary=fulfillmentSummary(), fPending=fSummary.count-fSummary.shippedCount;
   let html=`<button type="button" class="tab-btn${isC?' active':''}" data-a="switch-tab" data-tab="clients">👥 Client Overview</button>`;
+  html+=`<button type="button" class="tab-btn${isF?' active':''}" data-a="switch-tab" data-tab="fulfillment">✅ Fulfillment${fPending>0?`<span class="tab-count">${fPending}</span>`:''}</button>`;
   state.items.forEach(item=>{
     const active=ui.activeTab===item.id, cnt=itemOrders(item.id).length;
     const label=item.name.length>24?item.name.slice(0,22)+'…':item.name;
@@ -1440,7 +1909,9 @@ function renderTabNav() {
   nav.innerHTML=html;
 }
 function renderTabContent() {
-  if(ui.activeTab==='clients') renderClientTab(); else renderItemTab(ui.activeTab);
+  if(ui.activeTab==='clients') renderClientTab();
+  else if(ui.activeTab==='fulfillment') renderFulfillmentTab();
+  else renderItemTab(ui.activeTab);
 }
 
 /* ── RENDER: CLIENT OVERVIEW TAB ────────────────── */
@@ -1564,6 +2035,137 @@ function renderClientTab() {
   area.innerHTML=`<div class="tbl-wrap"><table class="ledger-tbl">${thead}${tbody}</table></div>`;
 }
 
+/* ── RENDER: FULFILLMENT TAB ─────────────────────── */
+function renderFulfillmentTab() {
+  const area=$e('tabContent'), summary=fulfillmentSummary();
+  if(!summary.count){
+    area.innerHTML='<div class="empty"><div class="empty-ico">✅</div><strong>No client orders yet</strong><span>Once you have client pre-orders, track packing and shipping progress here.</span></div>';
+    return;
+  }
+
+  let html=`<div class="brk-summary">
+    <div class="brk-stat"><span class="brk-stat-label">Client Orders</span><span class="brk-stat-val mono">${summary.count}</span></div>
+    <div class="brk-stat"><span class="brk-stat-label">Units Allocated</span><span class="brk-stat-val mono">${summary.totalUnits}</span></div>
+    <div class="brk-stat"><span class="brk-stat-label" style="color:var(--green)">Units Shipped</span><span class="brk-stat-val mono kpi-pos">${summary.shippedUnits}</span></div>
+    <div class="brk-stat"><span class="brk-stat-label" style="color:var(--gold)">Remaining in Pool</span><span class="brk-stat-val mono${summary.outstandingUnits>0?' kpi-gold':''}">${summary.outstandingUnits}</span></div>
+  </div>`;
+
+  /* Per-item pool breakdown — units already allocated to clients that haven't shipped
+     yet. Sorted worst-first. This is the "pool of available pre-ordered items" the
+     per-client rows below draw down from every time a Shipped box gets checked. */
+  const itemRows=Object.entries(summary.perItem)
+    .map(([itemId,v])=>({itemId,item:getItem(itemId),ordered:v.ordered,shipped:v.shipped,outstanding:v.ordered-v.shipped}))
+    .filter(r=>r.outstanding>0)
+    .sort((a,b)=>b.outstanding-a.outstanding);
+  if(itemRows.length){
+    html+=`<div class="tbl-wrap" style="margin-top:0"><table class="item-tbl">
+      <thead><tr><th>Item</th><th class="r">Allocated</th><th class="r">Shipped</th><th class="r">Remaining in Pool</th></tr></thead>
+      <tbody>${itemRows.map(r=>`<tr>
+        <td class="td-bold">${r.item?esc(r.item.name):'<span style="color:var(--red)">⚠ deleted</span>'}</td>
+        <td class="td-r mono">${r.ordered}</td>
+        <td class="td-r mono td-dim">${r.shipped}</td>
+        <td class="td-r mono kpi-gold">${r.outstanding}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } else {
+    html+=`<div class="empty" style="margin-top:0"><div class="empty-ico">🎉</div><strong>Everything's shipped</strong><span>No outstanding units across any item.</span></div>`;
+  }
+
+  const itemIdsInPlay=[...new Set(fulfillmentEligibleOrders().map(o=>o.itemId))];
+  const statusFilters=[['all','All'],['pending','Not Prepared'],['ready','Ready to Ship'],['shipped','Shipped']];
+  html+=`<div class="ledger-toolbar" style="margin-top:18px">
+    <div class="lt-left">
+      ${statusFilters.map(([key,label])=>`<button type="button" class="lt-btn${ui.fulfillmentStatusFilter===key?' active':''}" data-a="fulfillment-filter-status" data-val="${key}">${esc(label)}</button>`).join('')}
+      <div class="lt-divider"></div>
+      <button type="button" class="lt-btn${ui.fulfillmentLbcOnly?' active':''}" data-a="fulfillment-toggle-lbc-only" title="Show only clients with an unshipped LBC batch">🚚 LBC Pending Only</button>
+    </div>
+    <div class="lt-right">
+      <select class="fi" data-a="fulfillment-filter-item" style="max-width:220px">
+        <option value="all"${ui.fulfillmentItemFilter==='all'?' selected':''}>All Items</option>
+        ${itemIdsInPlay.map(id=>{ const it=getItem(id); return it?`<option value="${esc(id)}"${ui.fulfillmentItemFilter===id?' selected':''}>${esc(it.name)}</option>`:''; }).join('')}
+      </select>
+    </div>
+  </div>`;
+
+  const groups=fulfillmentGroupedByClient();
+  if(!groups.length){
+    html+=`<div class="empty"><div class="empty-ico">🔍</div><strong>No orders match this filter</strong><span>Try a different status, item, or LBC filter above.</span></div>`;
+    area.innerHTML=html;
+    return;
+  }
+
+  const nCols=6; /* Item, ETA, Qty Allocated, Prepared, Shipped, Note */
+  let tbody='';
+  groups.forEach(g=>{
+    const collapsed=ui.collapsedFulfillmentClients.has(g.name);
+    const chevron=collapsed?'▶':'▼';
+    const progressPill=g.fullyShipped
+      ? `<span class="pill pill-ok">✓ Fully Shipped</span>`
+      : `<span class="pill pill-bal">${g.shippedUnits}/${g.totalUnits} shipped</span>`;
+    const lbcBadge=g.lbcPending
+      ? `<span class="pill" style="background:var(--gold-s);color:var(--gold);border:1px solid rgba(244,197,83,0.3)">🚚 LBC Batch Pending</span>`
+      : (g.lbcInfo.viaLBC?`<span class="pill pill-ok">🚚 LBC</span>`:'');
+    const highlightAttr=g.lbcPending?' style="box-shadow:inset 4px 0 0 var(--gold)"':'';
+
+    tbody+=`<tr class="c-head${collapsed?' collapsed':''}">
+      <td colspan="${nCols}"${highlightAttr}>
+        <div class="c-head-inner">
+          <span class="c-name">
+            <button type="button" class="collapse-btn" data-a="toggle-fulfillment-collapse" data-client="${esc(g.name)}" title="${collapsed?'Expand':'Collapse'}">${chevron}</button>
+            👤 ${esc(g.name)} <span class="badge">${g.orderCount} item${g.orderCount===1?'':'s'}</span>
+            ${progressPill} ${lbcBadge}
+          </span>
+          <label class="store-check${g.lbcInfo.viaLBC?' is-store':''}">
+            <input type="checkbox" data-a="client-lbc-toggle" data-client="${esc(g.name)}" ${g.lbcInfo.viaLBC?'checked':''}> 🚚 Ship via LBC
+          </label>
+        </div>
+      </td>
+    </tr>`;
+
+    if(g.lbcInfo.viaLBC){
+      tbody+=`<tr class="c-sub">
+        <td colspan="${nCols}">
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <div class="ff" style="min-width:160px"><label>Recipient Name</label><input class="fi" data-a="lbc-field" data-client="${esc(g.name)}" data-field="recipientName" value="${esc(g.lbcInfo.recipientName||'')}"></div>
+            <div class="ff" style="min-width:160px"><label>Contact Number</label><input class="fi" data-a="lbc-field" data-client="${esc(g.name)}" data-field="contactNumber" value="${esc(g.lbcInfo.contactNumber||'')}" placeholder="09xx xxx xxxx"></div>
+            <div class="ff f2" style="min-width:220px"><label>Address</label><input class="fi" data-a="lbc-field" data-client="${esc(g.name)}" data-field="address" value="${esc(g.lbcInfo.address||'')}" placeholder="Full shipping address"></div>
+          </div>
+        </td>
+      </tr>`;
+    }
+
+    if(!collapsed){
+      g.orders.forEach(order=>{
+        const item=getItem(order.itemId), aq=allocQty(order);
+        const iName=item?esc(item.name):`<span style="color:var(--red)">⚠ deleted</span>`;
+        const iEta=item?esc(item.eta||'—'):'—';
+        const shippedDate=order.shipped&&order.shippedAt?`<div class="brk-unit" style="margin-top:2px">${new Date(order.shippedAt).toLocaleDateString('en-PH',{month:'short',day:'numeric'})}</div>`:'';
+        tbody+=`<tr data-oid="${esc(order.id)}">
+          <td class="td-bold">${iName}</td>
+          <td class="td-dim">${iEta}</td>
+          <td class="td-r mono">${aq}</td>
+          <td class="td-c"><input type="checkbox" data-a="fulfillment-toggle-prepared" data-id="${esc(order.id)}" ${order.prepared?'checked':''} style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer"></td>
+          <td class="td-c"><input type="checkbox" data-a="fulfillment-toggle-shipped" data-id="${esc(order.id)}" ${order.shipped?'checked':''} style="width:16px;height:16px;accent-color:var(--green);cursor:pointer">${shippedDate}</td>
+          <td><input class="ci" style="width:100%;min-width:140px" data-a="fulfillment-note" data-id="${esc(order.id)}" value="${esc(order.fulfillmentNote||'')}" placeholder="Add note…"></td>
+        </tr>`;
+      });
+
+      tbody+=`<tr class="c-sub">
+        <td><span class="sub-label">Subtotal — ${esc(g.name)}</span></td>
+        <td></td>
+        <td class="td-r mono">${g.totalUnits}</td>
+        <td class="td-c" colspan="3">${g.fullyShipped?`<span class="pill pill-ok">✓ Fully Shipped</span>`:`<span class="pill pill-bal">${g.shippedUnits}/${g.totalUnits} units shipped</span>`}</td>
+      </tr>`;
+    }
+  });
+
+  html+=`<div class="tbl-wrap"><table class="ledger-tbl">
+    <thead><tr><th>Item / SKU</th><th>ETA</th><th class="r">Qty Allocated</th><th class="c">Prepared</th><th class="c">Shipped</th><th>Note</th></tr></thead>
+    <tbody>${tbody}</tbody></table></div>`;
+
+  area.innerHTML=html;
+}
+
 /* ── RENDER: ITEM TAB ───────────────────────────── */
 function renderItemTab(itemId) {
   const area=$e('tabContent'), item=getItem(itemId);
@@ -1685,7 +2287,7 @@ function renderItemTab(itemId) {
   area.innerHTML=html;
 }
 
-function renderAll(){renderDash();renderFloatBreakdown();renderItems();syncOrderForm();renderLedger();renderBasket();syncRaffleItemSelect();syncRaffleSoundToggle();syncPresentationMode();renderRaffleArea();}
+function renderAll(){renderDash();renderFloatBreakdown();renderItems();syncOrderForm();renderLedger();renderBasket();syncDistForm();renderDistPOList();renderDistBasket();syncSaleItemSelect();renderStoreSalesPanel();syncRaffleItemSelect();syncRaffleSoundToggle();syncPresentationMode();syncFulfillmentMode();syncSessionPill();renderRaffleArea();}
 
 /* ── ACTIONS: ITEMS ─────────────────────────────── */
 $e('itemForm').addEventListener('submit',function(e){
@@ -1836,7 +2438,7 @@ function confirmBasket(){
   const client=$e('oClient').value.trim();
   if(!client){toast('Enter a client name before confirming.','err');$e('oClient').focus();return;}
   const ts=Date.now();
-  ui.basket.forEach((b,i)=>{ state.orders.push({id:uid(),clientName:client,itemId:b.itemId,qtyOrdered:b.qty,amountPaid:b.amountPaid,storeInventory:b.storeInventory,fundedByFloat:!!b.fundedByFloat,manualOverride:false,overriddenQty:0,raffleWinner:false,createdAt:ts+i}); });
+  ui.basket.forEach((b,i)=>{ state.orders.push({id:uid(),clientName:client,itemId:b.itemId,qtyOrdered:b.qty,amountPaid:b.amountPaid,storeInventory:b.storeInventory,fundedByFloat:!!b.fundedByFloat,manualOverride:false,overriddenQty:0,raffleWinner:false,prepared:false,shipped:false,shippedAt:null,fulfillmentNote:'',createdAt:ts+i}); });
   const count=ui.basket.length; ui.basket=[]; $e('oClient').value=''; ui.activeTab='clients';
   renderAll(); save(); toast(`${count} order${count===1?'':'s'} committed for "${client}".`,'ok');
 }
@@ -1883,6 +2485,89 @@ function renderBasket(){
     </div>
   </div>`;
 }
+
+/* ── DISTRIBUTOR ORDERS: BASKET ────────────────────
+   Mirrors the client-order basket above: pick items+qty onto a PO number one line at a time,
+   then commit them all together so one PO number groups every SKU that shipped under it. */
+$e('distForm').addEventListener('submit',function(e){ e.preventDefault(); addToDistBasket(); });
+function addToDistBasket(){
+  const itemId=$e('pItem').value, qty=parseInt($e('pQty').value,10)||0;
+  if(!itemId){toast('Select an item first.','err');return;}
+  if(qty<=0){toast('Quantity must be at least 1.','err');return;}
+  const dupe=ui.distBasket.find(b=>b.itemId===itemId);
+  if(dupe) toast(`Note: "${getItem(itemId)?.name}" already has a line in this basket.`,'ok');
+  ui.distBasket.push({tempId:uid(),itemId,qty});
+  $e('pItem').value=''; $e('pQty').value=1;
+  renderDistBasket();
+  $e('pItem').focus(); toast(`Item added to basket (${ui.distBasket.length} total).`,'ok');
+}
+function confirmDistBasket(){
+  if(!ui.distBasket.length) return;
+  const po=$e('pPoNumber').value.trim();
+  if(!po){toast('Enter a PO / order number before confirming.','err');$e('pPoNumber').focus();return;}
+  const ts=Date.now();
+  ui.distBasket.forEach((b,i)=>{ state.distributorOrders.push({id:uid(),poNumber:po,itemId:b.itemId,qty:b.qty,createdAt:ts+i}); });
+  const count=ui.distBasket.length; ui.distBasket=[]; $e('pPoNumber').value='';
+  renderAll(); save(); toast(`${count} line${count===1?'':'s'} logged under PO "${po}".`,'ok');
+}
+function clearDistBasket(){
+  if(!ui.distBasket.length) return;
+  const cleared=ui.distBasket.slice(); ui.distBasket=[]; renderDistBasket();
+  toastUndo(`Basket cleared (${cleared.length} item${cleared.length===1?'':'s'}).`,()=>{ ui.distBasket=cleared; renderDistBasket(); });
+}
+function removeDistBasketItem(tempId){ ui.distBasket=ui.distBasket.filter(b=>b.tempId!==tempId); renderDistBasket(); }
+function renderDistBasket(){
+  const area=$e('distBasketArea');
+  if(!ui.distBasket.length){area.innerHTML='';return;}
+  const poName=$e('pPoNumber').value.trim();
+  const pd=poName?`<em>${esc(poName)}</em>`:`<span style="color:var(--text-f);font-style:italic">enter PO / order number above</span>`;
+  const totalQty=ui.distBasket.reduce((s,b)=>s+b.qty,0);
+  let rows='';
+  ui.distBasket.forEach((b,idx)=>{
+    const item=getItem(b.itemId);
+    const ac=idx===ui.distBasket.length-1?'class="basket-row-enter"':'';
+    rows+=`<tr ${ac}>
+      <td class="td-bold">${item?esc(item.name):'<em style="color:var(--red)">item deleted</em>'}</td>
+      <td class="td-r mono">${b.qty}</td>
+      <td class="td-r"><button type="button" class="icon-btn del" data-a="rm-dist-basket" data-tid="${esc(b.tempId)}" title="Remove">✕</button></td>
+    </tr>`;
+  });
+  area.innerHTML=`<div class="basket-panel">
+    <div class="basket-hd">
+      <div class="basket-hd-left"><span class="basket-hd-title">🛒 Basket for PO ${pd}</span><span class="basket-hd-count">${ui.distBasket.length} item${ui.distBasket.length===1?'':'s'}</span></div>
+      <button type="button" class="btn btn-ghost" data-a="clear-dist-basket" style="font-size:12px;padding:5px 11px">✕ Clear</button>
+    </div>
+    <div class="tbl-wrap" style="margin-top:0;border-radius:0;border-left:none;border-right:none;border-top:none">
+      <table class="basket-tbl"><thead><tr><th>Item / SKU</th><th class="r">Qty</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table>
+    </div>
+    <div class="basket-ft">
+      <div class="basket-ft-info">${totalQty} box${totalQty===1?'':'es'} across ${ui.distBasket.length} item${ui.distBasket.length===1?'':'s'}</div>
+      <div class="basket-ft-actions">
+        <button type="button" class="btn btn-ghost" data-a="clear-dist-basket" style="font-size:12px">Clear all</button>
+        <button type="button" class="btn-confirm" data-a="confirm-dist-basket">✓ Log ${ui.distBasket.length} Line${ui.distBasket.length===1?'':'s'} to PO</button>
+      </div>
+    </div>
+  </div>`;
+}
+function deleteDistLine(id){
+  const line=state.distributorOrders.find(l=>l.id===id); if(!line) return;
+  const item=getItem(line.itemId);
+  state.distributorOrders=state.distributorOrders.filter(l=>l.id!==id);
+  renderAll(); save();
+  toastUndo(`Removed ${line.qty}× ${item?item.name:'item'} from PO "${line.poNumber}".`,()=>{ state.distributorOrders.push(line); renderAll(); save(); });
+}
+function deleteDistPO(poNumber){
+  const lines=linesForPO(poNumber); if(!lines.length) return;
+  if(!confirm(`Delete PO "${poNumber}" and all ${lines.length} line item(s)? This can't be undone.`)) return;
+  state.distributorOrders=state.distributorOrders.filter(l=>l.poNumber!==poNumber);
+  renderAll(); save();
+  toast(`Deleted PO "${poNumber}" (${lines.length} line${lines.length===1?'':'s'}).`,'ok');
+}
+
+/* ── ACTIONS: STORE SALES ───────────────────────── */
+$e('sItem').addEventListener('change',autoFillSalePrice);
+$e('saleForm').addEventListener('submit',function(e){ e.preventDefault(); addSale(); });
 
 /* ── EXCEL EXPORT ───────────────────────────────── */
 function sanitizeSheetName(name){return name.slice(0,31).replace(/[\[\]:*?/\\]/g,'_');}
@@ -2237,6 +2922,8 @@ function exportToExcel(){
 document.addEventListener('click',function(e){
   /* Close col picker when clicking outside */
   if(ui.showColPicker&&!e.target.closest('.col-picker-wrap')&&!e.target.closest('#colPickerOverlay')){ui.showColPicker=false;renderLedgerToolbar();}
+  /* Close session panel when clicking outside */
+  if(ui.showSessionPanel&&!e.target.closest('.session-switch-wrap')&&!e.target.closest('#sessionOverlay')){ui.showSessionPanel=false;renderSessionPanel();}
   const btn=e.target.closest('[data-a]'); if(!btn) return;
   const a=btn.dataset.a, id=btn.dataset.id;
   switch(a){
@@ -2255,6 +2942,16 @@ document.addEventListener('click',function(e){
     case 'rm-basket':      removeBasketItem(btn.dataset.tid); break;
     case 'clear-basket':   clearBasket(); break;
     case 'confirm-basket': confirmBasket(); break;
+    case 'rm-dist-basket':      removeDistBasketItem(btn.dataset.tid); break;
+    case 'clear-dist-basket':   clearDistBasket(); break;
+    case 'confirm-dist-basket': confirmDistBasket(); break;
+    case 'toggle-po-collapse': {
+      const pn=btn.dataset.po;
+      if(ui.collapsedPOs.has(pn)) ui.collapsedPOs.delete(pn); else ui.collapsedPOs.add(pn);
+      renderDistPOList(); break;
+    }
+    case 'del-dist-line': deleteDistLine(btn.dataset.id); break;
+    case 'del-dist-po':   deleteDistPO(btn.dataset.po); break;
     case 'toggle-collapse':
       const cn=btn.dataset.client;
       if(ui.collapsedClients.has(cn)) ui.collapsedClients.delete(cn); else ui.collapsedClients.add(cn);
@@ -2273,6 +2970,18 @@ document.addEventListener('click',function(e){
       ui.hiddenCols=new Set(['eta','float','act']); ui.showColPicker=false; renderLedger(); save(); break;
     case 'export-excel':   exportToExcel(); break;
     case 'download-all-receipts': generateAllReceipts(); break;
+    case 'fulfillment-filter-status':
+      ui.fulfillmentStatusFilter=btn.dataset.val; renderTabContent(); renderTabNav(); save(); break;
+    case 'fulfillment-toggle-lbc-only':
+      ui.fulfillmentLbcOnly=!ui.fulfillmentLbcOnly; renderTabContent(); save(); break;
+    case 'toggle-fulfillment-collapse':
+      const ffc=btn.dataset.client;
+      if(ui.collapsedFulfillmentClients.has(ffc)) ui.collapsedFulfillmentClients.delete(ffc); else ui.collapsedFulfillmentClients.add(ffc);
+      renderTabContent(); break;
+    case 'edit-sale':   editSale(id); break;
+    case 'save-sale':   saveSaleEdit(id); break;
+    case 'cancel-sale': cancelSaleEdit(); break;
+    case 'del-sale':    delSale(id); break;
     case 'raffle-spin':  raffleSpin(btn.dataset.item, btn.dataset.pool); break;
     case 'raffle-reset': raffleReset(btn.dataset.item, btn.dataset.pool); break;
     case 'raffle-finalize': raffleFinalize(btn.dataset.item, btn.dataset.pool); break;
@@ -2281,9 +2990,20 @@ document.addEventListener('click',function(e){
     case 'toggle-raffle-sound':
       ui.raffleSoundMuted=!ui.raffleSoundMuted; save(); syncRaffleSoundToggle(); break;
     case 'toggle-presentation':
-      ui.presentationMode=!ui.presentationMode; save(); syncPresentationMode();
+      ui.presentationMode=!ui.presentationMode;
+      if(ui.presentationMode && ui.fulfillmentMode){ ui.fulfillmentMode=false; syncFulfillmentMode(); }  /* the two hide overlapping panels — mutually exclusive */
+      save(); syncPresentationMode();
       if(ui.presentationMode) window.scrollTo({top:0,behavior:'smooth'});
       break;
+    case 'toggle-fulfillment-mode': toggleFulfillmentMode(); break;
+    case 'toggle-session-panel':
+      ui.showSessionPanel=!ui.showSessionPanel; renderSessionPanel(); break;
+    case 'switch-session':    switchSession(id); break;
+    case 'new-session':       createNewSession(); break;
+    case 'rename-session':    renameSession(id); break;
+    case 'duplicate-session': duplicateSession(id); break;
+    case 'delete-session':    deleteSession(id); break;
+    case 'export-session':    exportSessionById(id); break;
     case 'undo-action':
       if(_undoCb){clearTimeout(_tt);_undoCb();_undoCb=null;$e('toast').classList.remove('show');} break;
   }
@@ -2319,6 +3039,34 @@ document.addEventListener('change',function(e){
     const v=parseInt(el.value,10);
     pool.manualCount=isNaN(v)?null:Math.max(0,v);
     renderRaffleArea(); save();
+  }
+  if(a==='fulfillment-toggle-prepared'){
+    const order=state.orders.find(o=>o.id===el.dataset.id); if(!order) return;
+    order.prepared=el.checked;
+    renderLedger(); save();
+  }
+  if(a==='fulfillment-toggle-shipped'){
+    const order=state.orders.find(o=>o.id===el.dataset.id); if(!order) return;
+    order.shipped=el.checked;
+    order.shippedAt=el.checked?Date.now():null;
+    if(el.checked && !order.prepared) order.prepared=true;   /* can't ship what wasn't prepared */
+    renderLedger(); save();
+  }
+  if(a==='fulfillment-note'){
+    const order=state.orders.find(o=>o.id===el.dataset.id); if(!order) return;
+    order.fulfillmentNote=el.value;
+    save();   /* no re-render — avoids losing focus mid-edit */
+  }
+  if(a==='fulfillment-filter-item'){
+    ui.fulfillmentItemFilter=el.value; renderTabContent(); save();
+  }
+  if(a==='client-lbc-toggle'){
+    setClientLBCField(el.dataset.client,'viaLBC',el.checked);
+    renderTabContent(); renderTabNav(); save();
+  }
+  if(a==='lbc-field'){
+    setClientLBCField(el.dataset.client,el.dataset.field,el.value);
+    save();   /* no re-render — avoids losing focus mid-edit */
   }
 });
 
@@ -2486,12 +3234,209 @@ async function generateAllReceipts() {
   toast(`Batch complete: ${parts.join(', ')}.`, (skipCount>0 && successCount===0) ? 'err' : 'ok');
 }
 
+/* ── SESSION LIBRARY ───────────────────────────────
+   Each pre-order "session" (a wave/batch) is stored under its own localStorage
+   key, with a small index (LIB_KEY) tracking id/name/counts/timestamps so the
+   switcher panel can list every session without loading each one's full data.
+   ACTIVE_KEY remembers which session id is currently open, independent of the
+   in-page `ui` object, so a page refresh reopens the same session. */
+const SK='tcgPreOrderV5';                       /* legacy single-session key, read once for migration only */
+const LIB_KEY='tcgPreOrderSessions_v1';
+const ACTIVE_KEY='tcgPreOrderActiveSession_v1';
+const sessionDataKey=id=>'tcgPreOrderSessData_v1_'+id;
+
+function getLibrary(){ try{ const l=JSON.parse(localStorage.getItem(LIB_KEY)||'[]'); return Array.isArray(l)?l:[]; }catch(e){ return []; } }
+function setLibrary(lib){ try{ localStorage.setItem(LIB_KEY, JSON.stringify(lib)); }catch(e){} }
+
+/* First run: migrate the old single-session key into Session 1 of the library.
+   If the library already exists but the remembered active id was deleted or is
+   otherwise missing, fall back to the first session in the library. */
+function ensureActiveSession(){
+  let lib=getLibrary();
+  let activeId=localStorage.getItem(ACTIVE_KEY);
+  if(activeId && lib.some(s=>s.id===activeId)) return activeId;
+  if(lib.length===0){
+    const legacyRaw=localStorage.getItem(SK);
+    const id=uid(), now=new Date().toISOString();
+    if(legacyRaw) localStorage.setItem(sessionDataKey(id), legacyRaw);
+    lib=[{id,name:'Session 1',createdAt:now,updatedAt:now,itemCount:0,orderCount:0}];
+    setLibrary(lib);
+    activeId=id;
+  } else {
+    activeId=lib[0].id;
+  }
+  localStorage.setItem(ACTIVE_KEY, activeId);
+  return activeId;
+}
+
+/* Applies a raw session data object onto live state/ui, filling in the same
+   per-record defaults used everywhere else in the app. Shared by initial load,
+   session switching, and file import so all three paths stay in sync. */
+function applySessionBlob(d){
+  state.items=Array.isArray(d.items)?d.items.map(i=>Object.assign({allocationPct:100,actualAllocOverride:false,actualAllocQty:0},i)):[];
+  state.orders=Array.isArray(d.orders)?d.orders.map(o=>Object.assign({storeInventory:false,manualOverride:false,overriddenQty:0,fundedByFloat:false,raffleWinner:false,prepared:false,shipped:false,shippedAt:null,fulfillmentNote:''},o)):[];
+  state.raffles=(d.raffles&&typeof d.raffles==='object')?d.raffles:{};
+  state.sales=Array.isArray(d.sales)?d.sales.map(s=>Object.assign({shipped:false,notes:'',buyerName:'Walk-in'},s)):[];
+  state.clientFulfillmentData=(d.clientFulfillmentData&&typeof d.clientFulfillmentData==='object')?d.clientFulfillmentData:{};
+  state.distributorOrders=Array.isArray(d.distributorOrders)?d.distributorOrders:[];
+  ui.hiddenCols=Array.isArray(d.hiddenCols)?new Set(d.hiddenCols):new Set(['float']);
+  ui.sortClients=d.sortClients||'alpha';
+  ui.itemTabSort=d.itemTabSort||'date';
+  ui.raffleSoundMuted=typeof d.raffleSoundMuted==='boolean'?d.raffleSoundMuted:false;
+  ui.presentationMode=typeof d.presentationMode==='boolean'?d.presentationMode:false;
+  ui.fulfillmentMode=typeof d.fulfillmentMode==='boolean'?d.fulfillmentMode:false;
+}
+/* Clears the transient, non-persisted UI state that shouldn't leak from one
+   session into another (open edit forms, basket, collapsed rows, etc). */
+function resetTransientUI(){
+  ui.activeTab= ui.fulfillmentMode?'fulfillment':'clients';
+  ui.editItemId=null; ui.editOrderId=null; ui.editSaleId=null;
+  ui.basket=[]; ui.distBasket=[]; ui.raffleSelectedItem=null; ui.raffleSpinning={};
+  ui.collapsedClients=new Set(); ui.collapsedFulfillmentClients=new Set(); ui.collapsedPOs=new Set();
+  ui.fulfillmentStatusFilter='all'; ui.fulfillmentLbcOnly=false;
+  ui.showColPicker=false; ui.showSessionPanel=false;
+}
+function loadActiveSession(){
+  let d={};
+  try{ d=JSON.parse(localStorage.getItem(sessionDataKey(ui.activeSessionId))||'{}')||{}; }catch(e){ d={}; }
+  applySessionBlob(d);
+}
+function buildSessionExportBlob(){
+  return {items:state.items,orders:state.orders,raffles:state.raffles,sales:state.sales,clientFulfillmentData:state.clientFulfillmentData,distributorOrders:state.distributorOrders,hiddenCols:[...ui.hiddenCols],sortClients:ui.sortClients,itemTabSort:ui.itemTabSort,raffleSoundMuted:ui.raffleSoundMuted,presentationMode:ui.presentationMode,fulfillmentMode:ui.fulfillmentMode};
+}
+function slugify(s){ return String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')||'session'; }
+function timeAgo(iso){
+  if(!iso) return '';
+  const diff=Date.now()-new Date(iso).getTime(), m=Math.floor(diff/60000);
+  if(m<1) return 'just now';
+  if(m<60) return m+'m ago';
+  const h=Math.floor(m/60); if(h<24) return h+'h ago';
+  const dd=Math.floor(h/24); if(dd<30) return dd+'d ago';
+  return new Date(iso).toLocaleDateString();
+}
+function downloadJson(obj,filenamePrefix){
+  const blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob), a=Object.assign(document.createElement('a'),{href:url,download:filenamePrefix+'-'+new Date().toISOString().slice(0,10)+'.json'});
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+function switchSession(id){
+  if(id===ui.activeSessionId){ ui.showSessionPanel=false; renderSessionPanel(); return; }
+  const meta=getLibrary().find(s=>s.id===id);
+  if(!meta){ toast('Session not found.','err'); return; }
+  save();   /* persist whatever we're leaving before swapping state out from under it */
+  ui.activeSessionId=id;
+  localStorage.setItem(ACTIVE_KEY, id);
+  loadActiveSession();
+  resetTransientUI();
+  renderAll();
+  toast(`Switched to "${meta.name}".`,'ok');
+}
+function createNewSession(){
+  const lib=getLibrary();
+  const name=prompt('Name this session:', 'Session '+(lib.length+1));
+  if(name===null) return;
+  const trimmed=name.trim()||('Session '+(lib.length+1));
+  const id=uid(), now=new Date().toISOString();
+  lib.push({id,name:trimmed,createdAt:now,updatedAt:now,itemCount:0,orderCount:0});
+  setLibrary(lib);
+  localStorage.setItem(sessionDataKey(id), JSON.stringify({items:[],orders:[],raffles:{},sales:[],clientFulfillmentData:{},distributorOrders:[],hiddenCols:['float'],sortClients:'alpha',itemTabSort:'date',raffleSoundMuted:false,presentationMode:false,fulfillmentMode:false}));
+  switchSession(id);
+}
+function renameSession(id){
+  const lib=getLibrary(); const meta=lib.find(s=>s.id===id); if(!meta) return;
+  const name=prompt('Rename session:', meta.name);
+  if(name===null) return;
+  const trimmed=name.trim(); if(!trimmed) return;
+  meta.name=trimmed; meta.updatedAt=new Date().toISOString();
+  setLibrary(lib); syncSessionPill(); renderSessionPanel();
+  toast('Session renamed.','ok');
+}
+function duplicateSession(id){
+  const lib=getLibrary(); const meta=lib.find(s=>s.id===id); if(!meta) return;
+  if(id===ui.activeSessionId) save();   /* make sure the copy reflects unsaved live edits */
+  const raw=localStorage.getItem(sessionDataKey(id))||'{}';
+  const newId=uid(), now=new Date().toISOString();
+  localStorage.setItem(sessionDataKey(newId), raw);
+  lib.push({id:newId,name:meta.name+' (Copy)',createdAt:now,updatedAt:now,itemCount:meta.itemCount||0,orderCount:meta.orderCount||0});
+  setLibrary(lib); renderSessionPanel();
+  toast(`Duplicated "${meta.name}".`,'ok');
+}
+function deleteSession(id){
+  const lib=getLibrary(); const meta=lib.find(s=>s.id===id); if(!meta) return;
+  if(lib.length<=1){ toast("Can't delete your only session.",'err'); return; }
+  if(!confirm(`Delete session "${meta.name}"? This can't be undone.`)) return;
+  localStorage.removeItem(sessionDataKey(id));
+  const newLib=lib.filter(s=>s.id!==id);
+  setLibrary(newLib);
+  if(id===ui.activeSessionId) switchSession(newLib[0].id);
+  else renderSessionPanel();
+  toast(`Deleted "${meta.name}".`,'ok');
+}
+function exportSessionById(id){
+  const meta=getLibrary().find(s=>s.id===id); if(!meta) return;
+  let obj;
+  if(id===ui.activeSessionId){ obj=Object.assign({exportedAt:new Date().toISOString()},buildSessionExportBlob()); }
+  else{ let d={}; try{ d=JSON.parse(localStorage.getItem(sessionDataKey(id))||'{}')||{}; }catch(e){} obj=Object.assign({exportedAt:new Date().toISOString()},d); }
+  downloadJson(obj,'preorder-session-'+slugify(meta.name));
+  toast(`Exported "${meta.name}".`,'ok');
+}
+
+/* ── RENDER: SESSION SWITCHER ─────────────────────── */
+function syncSessionPill(){
+  const nameEl=$e('sessionPillName'), pill=$e('sessionPillBtn'); if(!nameEl||!pill) return;
+  const meta=getLibrary().find(s=>s.id===ui.activeSessionId);
+  nameEl.textContent=meta?meta.name:'Session';
+  pill.classList.toggle('active', ui.showSessionPanel);
+}
+function renderSessionPanel(){
+  const overlay=$e('sessionOverlay'); if(!overlay) return;
+  syncSessionPill();
+  if(!ui.showSessionPanel){ overlay.innerHTML=''; return; }
+
+  const lib=[...getLibrary()].sort((a,b)=>new Date(b.updatedAt)-new Date(a.updatedAt));
+  const rows=lib.map(s=>{
+    const isCurrent=s.id===ui.activeSessionId;
+    const counts=isCurrent?`${state.items.length} item${state.items.length===1?'':'s'} · ${state.orders.length} order${state.orders.length===1?'':'s'}`
+                           :`${s.itemCount||0} item${(s.itemCount||0)===1?'':'s'} · ${s.orderCount||0} order${(s.orderCount||0)===1?'':'s'}`;
+    return `<div class="session-row${isCurrent?' current':''}" data-a="${isCurrent?'':'switch-session'}" data-id="${esc(s.id)}">
+      <div class="session-row-main">
+        <div class="session-row-name">${esc(s.name)}</div>
+        <div class="session-row-meta">${counts} · Updated ${timeAgo(s.updatedAt)}</div>
+      </div>
+      ${isCurrent?'<span class="session-current-badge">Current</span>':''}
+      <div class="session-row-actions">
+        <button type="button" data-a="rename-session" data-id="${esc(s.id)}" title="Rename">✏️</button>
+        <button type="button" data-a="duplicate-session" data-id="${esc(s.id)}" title="Duplicate">⧉</button>
+        <button type="button" data-a="export-session" data-id="${esc(s.id)}" title="Export as file">⭳</button>
+        ${lib.length>1?`<button type="button" class="danger" data-a="delete-session" data-id="${esc(s.id)}" title="Delete">🗑️</button>`:''}
+      </div>
+    </div>`;
+  }).join('') || '<div class="session-panel-empty">No sessions yet.</div>';
+
+  overlay.innerHTML=`<div class="session-panel" id="sessionPanel">
+    <div class="session-panel-hd">
+      <div class="session-panel-title">Sessions</div>
+      <button type="button" class="btn btn-secondary session-new-btn" data-a="new-session">+ New</button>
+    </div>
+    ${rows}
+  </div>`;
+
+  const btn=$e('sessionPillBtn'), panel=$e('sessionPanel');
+  if(!btn||!panel) return;
+  const btnRect=btn.getBoundingClientRect();
+  const panelWidth=panel.offsetWidth||300, margin=12;
+  let left=btnRect.left;
+  left=Math.max(margin, Math.min(left, window.innerWidth-panelWidth-margin));
+  panel.style.top=(btnRect.bottom+8)+'px';
+  panel.style.left=left+'px';
+}
+window.addEventListener('resize', ()=>{ if(ui.showSessionPanel) renderSessionPanel(); });
+
 /* ── EXPORT / IMPORT ────────────────────────────── */
 $e('exportBtn').addEventListener('click',function(){
-  const blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),items:state.items,orders:state.orders,raffles:state.raffles,hiddenCols:[...ui.hiddenCols],sortClients:ui.sortClients,itemTabSort:ui.itemTabSort,raffleSoundMuted:ui.raffleSoundMuted},null,2)],{type:'application/json'});
-  const url=URL.createObjectURL(blob), a=Object.assign(document.createElement('a'),{href:url,download:'preorder-session-'+new Date().toISOString().slice(0,10)+'.json'});
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(()=>URL.revokeObjectURL(url),1000); toast('Session exported.','ok');
+  exportSessionById(ui.activeSessionId);
 });
 $e('importInput').addEventListener('change',function(e){
   const file=e.target.files[0]; if(!file) return;
@@ -2500,35 +3445,31 @@ $e('importInput').addEventListener('change',function(e){
     try{
       const d=JSON.parse(ev.target.result);
       if(!Array.isArray(d.items)||!Array.isArray(d.orders)) throw new Error('Invalid session file.');
-      if(!confirm(`Load ${d.items.length} item(s) and ${d.orders.length} order(s)? Current session will be replaced.`)) return;
-      state.items=d.items.map(i=>Object.assign({allocationPct:100,actualAllocOverride:false,actualAllocQty:0},i));
-      state.orders=d.orders.map(o=>Object.assign({storeInventory:false,manualOverride:false,overriddenQty:0,fundedByFloat:false,raffleWinner:false},o));
-      state.raffles=(d.raffles&&typeof d.raffles==='object')?d.raffles:{};
-      if(Array.isArray(d.hiddenCols)) ui.hiddenCols=new Set(d.hiddenCols);
-      if(d.sortClients) ui.sortClients=d.sortClients;
-      if(d.itemTabSort) ui.itemTabSort=d.itemTabSort;
-      if(typeof d.raffleSoundMuted==='boolean') ui.raffleSoundMuted=d.raffleSoundMuted;
-      ui.activeTab='clients'; ui.basket=[]; ui.raffleSelectedItem=null; ui.presentationMode=false; renderAll(); save();
-      toast(`Loaded: ${state.items.length} items, ${state.orders.length} orders.`,'ok');
-    }catch(err){toast('Load failed: '+err.message,'err');}
+      const defaultName=file.name.replace(/\.json$/i,'')||'Imported Session';
+      const name=prompt('Import as a new session — name it:', defaultName);
+      if(name===null) return;
+      const trimmed=name.trim()||defaultName;
+      const id=uid(), now=new Date().toISOString();
+      const blob={items:d.items,orders:d.orders,raffles:(d.raffles&&typeof d.raffles==='object')?d.raffles:{},sales:Array.isArray(d.sales)?d.sales:[],clientFulfillmentData:(d.clientFulfillmentData&&typeof d.clientFulfillmentData==='object')?d.clientFulfillmentData:{},distributorOrders:Array.isArray(d.distributorOrders)?d.distributorOrders:[],hiddenCols:Array.isArray(d.hiddenCols)?d.hiddenCols:['float'],sortClients:d.sortClients||'alpha',itemTabSort:d.itemTabSort||'date',raffleSoundMuted:!!d.raffleSoundMuted,presentationMode:false,fulfillmentMode:false};
+      localStorage.setItem(sessionDataKey(id), JSON.stringify(blob));
+      const lib=getLibrary();
+      lib.push({id,name:trimmed,createdAt:now,updatedAt:now,itemCount:d.items.length,orderCount:d.orders.length});
+      setLibrary(lib);
+      switchSession(id);
+      toast(`Imported "${trimmed}": ${d.items.length} item(s), ${d.orders.length} order(s).`,'ok');
+    }catch(err){toast('Import failed: '+err.message,'err');}
   };
   r.readAsText(file); e.target.value='';
 });
 
 /* ── LOCAL STORAGE ──────────────────────────────── */
-const SK='tcgPreOrderV5';
-function save(){try{localStorage.setItem(SK,JSON.stringify({items:state.items,orders:state.orders,raffles:state.raffles,hiddenCols:[...ui.hiddenCols],sortClients:ui.sortClients,itemTabSort:ui.itemTabSort,raffleSoundMuted:ui.raffleSoundMuted,presentationMode:ui.presentationMode}));}catch(e){}}
-function load(){
+function save(){
+  if(!ui.activeSessionId) return;
   try{
-    const d=JSON.parse(localStorage.getItem(SK)||'null'); if(!d) return;
-    if(Array.isArray(d.items))  state.items=d.items.map(i=>Object.assign({allocationPct:100,actualAllocOverride:false,actualAllocQty:0},i));
-    if(Array.isArray(d.orders)) state.orders=d.orders.map(o=>Object.assign({storeInventory:false,manualOverride:false,overriddenQty:0,fundedByFloat:false,raffleWinner:false},o));
-    state.raffles=(d.raffles&&typeof d.raffles==='object')?d.raffles:{};
-    if(Array.isArray(d.hiddenCols)) ui.hiddenCols=new Set(d.hiddenCols);
-    if(d.sortClients) ui.sortClients=d.sortClients;
-    if(d.itemTabSort) ui.itemTabSort=d.itemTabSort;
-    if(typeof d.raffleSoundMuted==='boolean') ui.raffleSoundMuted=d.raffleSoundMuted;
-    if(typeof d.presentationMode==='boolean') ui.presentationMode=d.presentationMode;
+    localStorage.setItem(sessionDataKey(ui.activeSessionId), JSON.stringify(buildSessionExportBlob()));
+    const lib=getLibrary();
+    const meta=lib.find(s=>s.id===ui.activeSessionId);
+    if(meta){ meta.updatedAt=new Date().toISOString(); meta.itemCount=state.items.length; meta.orderCount=state.orders.length; setLibrary(lib); }
   }catch(e){}
 }
 
@@ -2538,7 +3479,9 @@ function toast(msg,type){ _undoCb=null; const t=$e('toast'); t.textContent=msg; 
 function toastUndo(msg,cb){ _undoCb=cb; const t=$e('toast'); t.innerHTML=`<span>${esc(msg)}</span><button class="toast-undo" data-a="undo-action">Undo</button>`; t.className='toast show t-ok'; clearTimeout(_tt); _tt=setTimeout(()=>{t.classList.remove('show');_undoCb=null;},5000); }
 
 /* ── INIT ───────────────────────────────────────── */
-load(); renderAll();
+ui.activeSessionId=ensureActiveSession();
+loadActiveSession();
+renderAll();
 })();
 </script>
 </body>
