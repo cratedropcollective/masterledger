@@ -6,8 +6,32 @@
 <title>Pre-Order Allocation Workspace</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- Brand fonts for the PNG receipt template, matching cratedropcollective.github.io -->
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Poppins:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <!-- Tailwind CDN — used for the receipt image template -->
 <script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          ink: '#14161C',
+          ink2: '#1F222B',
+          paper: '#F7F8FA',
+          steel: '#6B7280',
+          brandblue: '#2C5FAE',
+          brandred: '#E13239',
+          brandgold: '#FFC72C'
+        },
+        fontFamily: {
+          display: ['"Rajdhani"', 'sans-serif'],
+          body: ['"Poppins"', 'sans-serif'],
+          mono: ['"Space Mono"', 'monospace']
+        }
+      }
+    }
+  }
+</script>
 <!-- html2canvas — renders the receipt DOM node as a downloadable PNG -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
@@ -391,6 +415,14 @@ body.fulfillment-mode #orderLedgerPanel #tabNav { display:none !important; }
 .session-row-actions button.danger:hover { color:var(--red); }
 .session-current-badge { font-size:9px; text-transform:uppercase; letter-spacing:0.05em; color:var(--accent-l); font-weight:700; flex-shrink:0; }
 .session-panel-empty { font-size:12px; color:var(--text-d); padding:10px 8px; text-align:center; }
+
+/* ── PNG RECEIPT — Crate Drop Collective brand geometry (matches cratedropcollective.github.io) ── */
+.receipt-panel-cut { clip-path: polygon(0 14px, 14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%); }
+.receipt-panel-cut-sm { clip-path: polygon(0 8px, 8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%); }
+.receipt-tag-slant { transform: skewX(-12deg); display: inline-block; }
+.receipt-tag-slant > span { display: inline-block; transform: skewX(12deg); }
+.receipt-signal-stripe { display: flex; height: 6px; width: 100%; }
+.receipt-signal-stripe > div { flex: 1; transform: skewX(-25deg); margin: 0 -3px; }
 </style>
 </head>
 <body>
@@ -3089,16 +3121,18 @@ function buildReceiptHTML(clientName, orders) {
     const formatLabel = order.storeInventory ? 'CASE' : 'UNIT';
 
     rowsHtml += `
-      <div class="grid grid-cols-12 gap-2 text-slate-800 font-bold text-[11px] py-4 border-b border-gray-100 items-center">
-        <div class="col-span-1 font-black text-lg text-center">${qty}</div>
-        <div class="col-span-1 uppercase text-[8px] text-center text-blue-600 font-black">${formatLabel}</div>
-        <div class="col-span-4 uppercase leading-tight">
-          <span>${esc(item.name)}</span>
-          <div class="text-[8px] text-gray-400 mt-1 font-bold">ETA: ${esc(item.eta || '—')}</div>
+      <div class="grid grid-cols-12 gap-2 text-ink font-semibold text-[11px] py-4 border-b border-gray-100 items-center">
+        <div class="col-span-1 font-display font-bold text-lg text-center">${qty}</div>
+        <div class="col-span-1 text-center">
+          <span class="receipt-tag-slant bg-ink"><span class="block text-white text-[8px] font-black uppercase px-2 py-0.5 tracking-wide">${formatLabel}</span></span>
         </div>
-        <div class="col-span-2 text-right text-gray-500">${php(srp)}</div>
-        <div class="col-span-2 text-right text-blue-600 font-black">${php(calculatedDP)}</div>
-        <div class="col-span-2 text-right font-black">${php(lineTotal)}</div>
+        <div class="col-span-4 uppercase leading-tight">
+          <span class="font-display font-semibold tracking-tight">${esc(item.name)}</span>
+          <div class="text-[8px] text-steel mt-1 font-mono normal-case tracking-normal">ETA: ${esc(item.eta || '—')}</div>
+        </div>
+        <div class="col-span-2 text-right text-steel font-mono">${php(srp)}</div>
+        <div class="col-span-2 text-right text-brandblue font-black font-mono">${php(calculatedDP)}</div>
+        <div class="col-span-2 text-right font-black font-mono">${php(lineTotal)}</div>
       </div>`;
   });
 
@@ -3108,52 +3142,65 @@ function buildReceiptHTML(clientName, orders) {
   const balanceShown = php(Math.abs(balanceRaw));
 
   return `
-  <div id="receipt-canvas" class="bg-white shadow-2xl border border-gray-100 flex flex-col" style="width: 850px; min-height: 800px; color: #0f172a;">
-      <div class="p-10 border-b-2 border-gray-50">
-          <div class="flex items-center justify-center space-x-6">
-              <div class="flex flex-col items-center border-r-2 border-gray-100 pr-8">
-                  <span class="text-4xl font-black tracking-tighter leading-none text-slate-900">CRATE DROP</span>
-                  <span class="block text-[15px] font-bold text-blue-500 tracking-[0.4em] uppercase -mt-1">COLLECTIVE</span>
-              </div>
-              <div class="text-left">
-                  <h1 class="text-3xl font-black text-blue-800 italic tracking-tighter uppercase leading-none">Order <br> Confirmation</h1>
-              </div>
-          </div>
+  <div id="receipt-canvas" class="bg-paper flex flex-col" style="width: 850px; min-height: 800px; font-family: 'Poppins', sans-serif; color: #14161C;">
+      <div class="receipt-signal-stripe">
+          <div class="bg-brandblue"></div><div class="bg-brandred"></div><div class="bg-brandgold"></div>
       </div>
-      <div class="bg-blue-700 text-white px-10 py-3 flex justify-between font-bold text-xs uppercase tracking-widest">
-          <span>Customer: <span class="ml-2 font-black border-b border-white/40">${esc(clientName)}</span></span>
+
+      <div class="bg-ink text-white px-10 py-9 text-center relative overflow-hidden">
+          <p class="font-mono text-[10px] tracking-[0.35em] text-brandgold uppercase mb-3">Order Confirmation</p>
+          <div class="font-display text-4xl font-bold uppercase tracking-tight leading-none">
+              <span class="text-brandblue">CRATE</span><span class="text-brandred">DROP</span><span class="text-brandgold">COLLECTIVE</span>
+          </div>
+          <div class="absolute -right-8 -bottom-8 w-40 h-40 border-8 border-brandblue/20 rotate-12"></div>
+          <div class="absolute -left-8 -top-8 w-28 h-28 border-8 border-brandred/20 -rotate-12"></div>
+      </div>
+
+      <div class="receipt-signal-stripe">
+          <div class="bg-brandblue"></div><div class="bg-brandred"></div><div class="bg-brandgold"></div>
+      </div>
+
+      <div class="bg-ink2 text-white px-10 py-3 flex justify-between font-bold text-[11px] uppercase tracking-widest font-mono">
+          <span>Customer: <span class="ml-2 font-black border-b border-white/30">${esc(clientName)}</span></span>
           <span>Date: <span>${today}</span></span>
       </div>
+
       <div class="mx-10 mt-8 flex-grow">
-          <div class="grid grid-cols-12 gap-2 text-blue-800 font-black text-[10px] uppercase border-b-4 border-blue-800 pb-3">
+          <div class="grid grid-cols-12 gap-2 text-ink font-display font-bold text-[11px] uppercase border-b-4 border-ink pb-3">
               <div class="col-span-1 text-center">Qty.</div>
               <div class="col-span-1 text-center">Format</div>
               <div class="col-span-4">Product Name</div>
               <div class="col-span-2 text-right">Price/Unit</div>
-              <div class="col-span-2 text-right text-blue-500">DP (30%)</div>
+              <div class="col-span-2 text-right text-brandblue">DP (30%)</div>
               <div class="col-span-2 text-right">Line Total</div>
           </div>
           ${rowsHtml}
       </div>
+
       <div class="mx-10 flex flex-col items-end space-y-4 mt-8">
           <div class="w-full max-w-[380px]">
-              <div class="flex justify-between text-[10px] font-black text-gray-400 uppercase mb-2 px-2">
+              <div class="flex justify-between text-[10px] font-black text-steel uppercase mb-2 px-2 font-mono">
                   <span>Total Combined Order:</span>
                   <span>${php(totalSrpValue)}</span>
               </div>
-              <div class="bg-blue-700 text-white text-center py-2 font-black text-[11px] uppercase tracking-widest">Total Combined DP Paid (30%)</div>
-              <div class="text-center font-black text-4xl text-slate-900 py-3 border-x border-b border-gray-100 shadow-sm">
+              <div class="bg-brandblue text-white text-center py-2 font-display font-black text-[12px] uppercase tracking-widest receipt-panel-cut-sm">Total Combined DP Paid (30%)</div>
+              <div class="text-center font-display font-black text-4xl text-ink py-3 border-x border-b border-gray-200">
                   ${php(summary.paid)}
               </div>
           </div>
           <div class="w-full max-w-[380px] mb-8">
-              <div class="bg-slate-800 text-white text-center py-1.5 font-black text-[10px] uppercase tracking-widest">${balanceLabel}</div>
-              <div class="text-center font-black text-2xl text-slate-700 py-2 border-x border-b border-gray-100 shadow-sm">
+              <div class="bg-ink text-white text-center py-1.5 font-display font-black text-[11px] uppercase tracking-widest receipt-panel-cut-sm">${balanceLabel}</div>
+              <div class="text-center font-display font-black text-2xl text-ink py-2 border-x border-b border-gray-200">
                   ${balanceShown}
               </div>
           </div>
       </div>
-      <div class="px-16 py-10 bg-gray-50 border-t border-gray-100 text-[10px] text-gray-400 text-center leading-relaxed font-semibold italic">
+
+      <div class="receipt-signal-stripe">
+          <div class="bg-brandblue"></div><div class="bg-brandred"></div><div class="bg-brandgold"></div>
+      </div>
+
+      <div class="px-16 py-8 bg-white text-[10px] text-steel text-center leading-relaxed font-medium italic">
           By placing a pre-order, you confirm that you have understood the risks of country allocation cuts. Payment for the remaining balance is due within 3 days of allocation confirmation. Cancellations are not allowed, and the 30% deposit is non-refundable.
       </div>
   </div>`;
@@ -3185,7 +3232,8 @@ function generateReceiptForClient(clientName, opts) {
   /* Small delay lets the Tailwind CDN runtime inject styles for these
      dynamically-created classes before html2canvas takes the snapshot. */
   return new Promise(resolve => requestAnimationFrame(resolve))
-    .then(() => new Promise(resolve => setTimeout(resolve, 60)))
+    .then(() => (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve())
+    .then(() => new Promise(resolve => setTimeout(resolve, 120)))
     .then(() => html2canvas(target, { scale: 2, backgroundColor: '#ffffff', useCORS: true }))
     .then(canvas => {
       const safeName = clientName.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'client';
