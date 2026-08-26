@@ -3431,7 +3431,9 @@ function generateReceiptForClient(clientName, opts) {
     .then(() => new Promise(resolve => setTimeout(resolve, 120)))
     .then(() => html2canvas(target, { scale: 2, backgroundColor: '#ffffff', useCORS: true }))
     .then(canvas => {
-      const safeName = clientName.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'client';
+      const sessionMeta = getLibrary().find(s => s.id === ui.activeSessionId);
+      const sessionName = sessionMeta ? sessionMeta.name : 'Session';
+      const safeName = sanitizeFilename(`${sessionName} - ${clientName}`);
       const link = document.createElement('a');
       link.download = `Receipt-${safeName}.png`;
       link.href = canvas.toDataURL('image/png');
@@ -3551,6 +3553,10 @@ function buildSessionExportBlob(){
   return {items:state.items,orders:state.orders,raffles:state.raffles,sales:state.sales,clientFulfillmentData:state.clientFulfillmentData,distributorOrders:state.distributorOrders,refunds:state.refunds,hiddenCols:[...ui.hiddenCols],collapsedPanels:[...ui.collapsedPanels],sortClients:ui.sortClients,itemTabSort:ui.itemTabSort,raffleSoundMuted:ui.raffleSoundMuted,presentationMode:ui.presentationMode,fulfillmentMode:ui.fulfillmentMode};
 }
 function slugify(s){ return String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')||'session'; }
+/* Keeps the session's actual name/casing/spacing intact for the downloaded
+   filename (unlike slugify, which is for internal/URL-safe use) — only
+   strips characters that are illegal in a filename on Windows/macOS. */
+function sanitizeFilename(s){ return String(s).replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim()||'Session'; }
 function timeAgo(iso){
   if(!iso) return '';
   const diff=Date.now()-new Date(iso).getTime(), m=Math.floor(diff/60000);
@@ -3625,7 +3631,7 @@ function exportSessionById(id){
   let obj;
   if(id===ui.activeSessionId){ obj=Object.assign({exportedAt:new Date().toISOString()},buildSessionExportBlob()); }
   else{ let d={}; try{ d=JSON.parse(localStorage.getItem(sessionDataKey(id))||'{}')||{}; }catch(e){} obj=Object.assign({exportedAt:new Date().toISOString()},d); }
-  downloadJson(obj,'preorder-session-'+slugify(meta.name));
+  downloadJson(obj,sanitizeFilename(meta.name));
   toast(`Exported "${meta.name}".`,'ok');
 }
 
