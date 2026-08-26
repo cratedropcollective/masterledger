@@ -97,9 +97,15 @@ button:focus { outline:2px solid var(--accent); outline-offset:1px; }
 /* ── PANELS ───────────────────────────────────────── */
 .panel { background:var(--surf); border:1px solid var(--border); border-radius:var(--r); margin-bottom:18px; overflow:hidden; }
 .panel-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--border); background:var(--surf-2); }
+.panel-head-actions { display:flex; align-items:center; gap:8px; flex-shrink:0; }
 .panel-title { font-family:var(--fd); font-size:14.5px; font-weight:600; display:flex; align-items:center; gap:9px; }
 .badge { font-family:var(--fm); font-size:10.5px; padding:2px 8px; border-radius:20px; background:var(--accent-gl); color:var(--accent-l); border:1px solid rgba(124,111,247,0.2); }
 .panel-body { padding:18px 20px; }
+.panel-collapse-toggle { background:var(--surf-3); border:1px solid var(--border); color:var(--text-d); border-radius:6px; width:28px; height:28px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:12px; line-height:1; transition:all 0.14s, transform 0.16s; flex-shrink:0; }
+.panel-collapse-toggle:hover { border-color:var(--accent); color:var(--text); }
+.panel.collapsed .panel-head { border-bottom:none; }
+.panel.collapsed .panel-body { display:none; }
+.panel.collapsed .panel-collapse-toggle { transform:rotate(-90deg); }
 
 /* ── FORMS ────────────────────────────────────────── */
 .form-grid { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
@@ -442,6 +448,7 @@ body.fulfillment-mode #orderLedgerPanel #tabNav { display:none !important; }
           📁 <span class="session-pill-name" id="sessionPillName">Session</span><span class="session-pill-caret">▾</span>
         </button>
       </div>
+      <button type="button" class="btn btn-secondary" id="collapseAllToggle" data-a="toggle-collapse-all">🗂️ Collapse All</button>
       <button type="button" class="btn btn-secondary" id="fulfillmentModeToggle" data-a="toggle-fulfillment-mode">✅ Fulfillment Mode</button>
       <button type="button" class="btn btn-secondary" id="exportBtn">⭳ Export Session</button>
       <label class="file-label">⭱ Upload Session<input type="file" id="importInput" accept="application/json" hidden></label>
@@ -454,15 +461,15 @@ body.fulfillment-mode #orderLedgerPanel #tabNav { display:none !important; }
     <div class="kpi"><div class="k-label">Public DP Collected</div><div class="k-value mono kpi-gold" id="kpiPubDP">₱0.00</div><div class="k-hint">Total amount paid across all clients &amp; store orders</div></div>
   </section>
 
-  <div class="panel">
-    <div class="panel-head"><div class="panel-title">💰 Floating Capital Breakdown</div></div>
+  <div class="panel" data-panel="float">
+    <div class="panel-head"><div class="panel-title">💰 Floating Capital Breakdown</div><button type="button" class="panel-collapse-toggle" data-a="toggle-panel-collapse" data-panel="float" title="Collapse/expand this panel">▾</button></div>
     <div class="panel-body">
       <div id="floatBreakdownArea"></div>
     </div>
   </div>
 
-  <div class="panel">
-    <div class="panel-head"><div class="panel-title">📦 Item Master List <span class="badge" id="itemBadge">0 items</span></div></div>
+  <div class="panel" data-panel="itemMaster">
+    <div class="panel-head"><div class="panel-title">📦 Item Master List <span class="badge" id="itemBadge">0 items</span></div><button type="button" class="panel-collapse-toggle" data-a="toggle-panel-collapse" data-panel="itemMaster" title="Collapse/expand this panel">▾</button></div>
     <div class="panel-body">
       <form id="itemForm" class="form-grid">
         <div class="ff f2"><label for="iName">Item Name / SKU</label><input type="text" id="iName" class="fi" placeholder="e.g. GD05: Freedom Ascension Case" required></div>
@@ -481,16 +488,16 @@ body.fulfillment-mode #orderLedgerPanel #tabNav { display:none !important; }
     </div>
   </div>
 
-  <div class="panel">
-    <div class="panel-head"><div class="panel-title">📊 Item Allocation Breakdown <span class="badge" id="breakdownBadge">0 items</span></div></div>
+  <div class="panel" data-panel="breakdown">
+    <div class="panel-head"><div class="panel-title">📊 Item Allocation Breakdown <span class="badge" id="breakdownBadge">0 items</span></div><button type="button" class="panel-collapse-toggle" data-a="toggle-panel-collapse" data-panel="breakdown" title="Collapse/expand this panel">▾</button></div>
     <div class="panel-body">
       <div id="breakdownSummaryBar"></div>
       <div id="itemBreakdownArea"></div>
     </div>
   </div>
 
-  <div class="panel" id="distributorOrdersPanel">
-    <div class="panel-head"><div class="panel-title">📦 Distributor Orders <span class="badge" id="distBadge">0 placed</span></div></div>
+  <div class="panel" id="distributorOrdersPanel" data-panel="distributor">
+    <div class="panel-head"><div class="panel-title">📦 Distributor Orders <span class="badge" id="distBadge">0 placed</span></div><button type="button" class="panel-collapse-toggle" data-a="toggle-panel-collapse" data-panel="distributor" title="Collapse/expand this panel">▾</button></div>
     <div class="panel-body">
       <div id="distCrossCheckArea"></div>
       <form id="distForm" class="form-grid">
@@ -507,8 +514,8 @@ body.fulfillment-mode #orderLedgerPanel #tabNav { display:none !important; }
     </div>
   </div>
 
-  <div class="panel" id="orderLedgerPanel">
-    <div class="panel-head"><div class="panel-title">📋 Order Ledger <span class="badge" id="orderBadge">0 orders</span></div></div>
+  <div class="panel" id="orderLedgerPanel" data-panel="ledger">
+    <div class="panel-head"><div class="panel-title">📋 Order Ledger <span class="badge" id="orderBadge">0 orders</span></div><button type="button" class="panel-collapse-toggle" data-a="toggle-panel-collapse" data-panel="ledger" title="Collapse/expand this panel">▾</button></div>
     <div class="panel-body">
       <form id="orderForm" class="form-grid">
         <div class="ff f2"><label for="oClient">Client Name</label><input type="text" id="oClient" class="fi" placeholder="e.g. Maria Santos" required></div>
@@ -535,8 +542,8 @@ body.fulfillment-mode #orderLedgerPanel #tabNav { display:none !important; }
     </div>
   </div>
 
-  <div class="panel" id="storeSalesPanel">
-    <div class="panel-head"><div class="panel-title">🛍️ Store Sales &amp; Inventory <span class="badge" id="salesBadge">0 sales</span></div></div>
+  <div class="panel" id="storeSalesPanel" data-panel="sales">
+    <div class="panel-head"><div class="panel-title">🛍️ Store Sales &amp; Inventory <span class="badge" id="salesBadge">0 sales</span></div><button type="button" class="panel-collapse-toggle" data-a="toggle-panel-collapse" data-panel="sales" title="Collapse/expand this panel">▾</button></div>
     <div class="panel-body">
       <form id="saleForm" class="form-grid">
         <div class="ff f2"><label for="sItem">Item</label><select id="sItem" class="fi" required><option value="">— Select item —</option></select></div>
@@ -557,8 +564,8 @@ body.fulfillment-mode #orderLedgerPanel #tabNav { display:none !important; }
     </div>
   </div>
 
-  <div class="panel" id="raffleWheelPanel">
-    <div class="panel-head"><div class="panel-title">🎡 Raffle Wheel <span class="badge" id="raffleBadge">0 items</span></div><button type="button" class="raffle-sound-toggle" id="raffleSoundToggle" data-a="toggle-raffle-sound">🔊 Sound On</button></div>
+  <div class="panel" id="raffleWheelPanel" data-panel="raffle">
+    <div class="panel-head"><div class="panel-title">🎡 Raffle Wheel <span class="badge" id="raffleBadge">0 items</span></div><div class="panel-head-actions"><button type="button" class="raffle-sound-toggle" id="raffleSoundToggle" data-a="toggle-raffle-sound">🔊 Sound On</button><button type="button" class="panel-collapse-toggle" data-a="toggle-panel-collapse" data-panel="raffle" title="Collapse/expand this panel">▾</button></div></div>
     <div class="panel-body">
       <div class="ff" style="max-width:360px;margin-bottom:18px">
         <label for="raffleItemSelect">Select Item</label>
@@ -595,7 +602,7 @@ const COL_ALIGN = { qty:'r', alloc:'c', paid:'r', amtAlloc:'r', float:'r', refun
 const COL_STYLE = { alloc:'min-width:160px', amtAlloc:'min-width:135px', float:'min-width:130px', refund:'min-width:160px', act:'min-width:70px' };
 
 /* ── STATE ──────────────────────────────────────── */
-let state = { items:[], orders:[], raffles:{}, sales:[], clientFulfillmentData:{}, distributorOrders:[] };
+let state = { items:[], orders:[], raffles:{}, sales:[], clientFulfillmentData:{}, distributorOrders:[], refunds:{} };
 let ui = {
   activeTab:        'clients',
   editItemId:       null,
@@ -608,6 +615,8 @@ let ui = {
   fulfillmentItemFilter:   'all',  /* 'all' or an itemId — Fulfillment tab item filter */
   fulfillmentLbcOnly:      false,  /* true = show only clients with an unshipped LBC batch pending */
   collapsedFulfillmentClients: new Set(),   /* independent from Client Overview's own collapse state */
+  collapsedPanels: new Set(),   /* keys of top-level panels (Item Master List, Order Ledger, etc.) currently collapsed to declutter the workspace — persisted per-session, like hiddenCols */
+  refundStatusFilter:      'all',  /* 'all' | 'owed' | 'processing' | 'refunded' — Refunds tab status filter */
   hiddenCols:       new Set(['float']),   /* Float Generated hidden by default; user can re-enable via column picker */
   sortClients:      'alpha',   /* 'alpha' | 'date' */
   itemTabSort:      'date',    /* 'date' | 'qtyDesc' — order of client rows within an Item tab */
@@ -763,6 +772,55 @@ function fulfillmentGroupedByClient() {
     return {name,orders,lbcInfo,totalUnits,shippedUnits,fullyShipped,lbcPending,orderCount:allOrders.length};
   }).filter(g=>g.orders.length>0);
   return ui.fulfillmentLbcOnly ? groups.filter(g=>g.lbcPending) : groups;
+}
+
+/* ── REFUND TRACKING ────────────────────────────────────────────────────
+   Refund/Balance has always been a computed pill (see clientSummary/orderFin)
+   but purely informational — nothing recorded whether a refund was actually
+   sent, how, or when. This adds a persistent per-CLIENT record (like
+   clientFulfillmentData's LBC info, keyed by client name — no separate
+   client entity exists) so that act can be tracked: status flow
+   Owed -> Processing -> Refunded, a payout method, an editable actual
+   amount (for partial/rounded payouts that don't match the calculated
+   figure exactly), a date, and a note. Deliberately client-level only
+   (not per-order) — the calculated figure it's tracked against is already
+   the client-level Total Refund shown in Client Overview. */
+function getClientRefundData(name) {
+  return state.refunds[name] || {status:'owed',method:'',actualAmount:null,date:null,note:''};
+}
+function setClientRefundField(name,field,value) {
+  if(!state.refunds[name]) state.refunds[name]={status:'owed',method:'',actualAmount:null,date:null,note:''};
+  state.refunds[name][field]=value;
+}
+/* Clients currently owed a refund per the live calculation — the same
+   isRefund && !isZero check that already drives the green "Refund ₱X"
+   pill in Client Overview, so this list can never disagree with that
+   pill. Existing refund records for a client who's since dropped to
+   ₱0 owed (order edited/deleted after being refunded) intentionally
+   fall out of this list — nothing left to track. */
+function refundEligibleClients() {
+  return clientNames().filter(name=>{ const s=clientSummary(name); return s.isRefund && !s.isZero; });
+}
+/* Mirrors the item-level Confirmed/Estimated distinction already used for
+   Projected Client Profit (item.actualAllocOverride) — a client's refund
+   figure is only "Confirmed" once EVERY item they ordered has its
+   distributor actual count locked in; otherwise it can still shift, so
+   it's tagged Estimated. */
+function clientRefundConfirmed(name) {
+  const items=[...new Set(ordersForClient(name).map(o=>o.itemId))].map(getItem).filter(Boolean);
+  return items.length>0 && items.every(it=>it.actualAllocOverride);
+}
+function refundsSummary() {
+  const names=refundEligibleClients();
+  let totalOwed=0,totalProcessing=0,totalRefunded=0,countOwed=0,countProcessing=0,countRefunded=0;
+  names.forEach(name=>{
+    const s=clientSummary(name), rd=getClientRefundData(name);
+    const amt=(rd.actualAmount!=null&&rd.actualAmount!=='')?Number(rd.actualAmount):s.net;
+    if(rd.status==='refunded'){ totalRefunded+=amt; countRefunded++; }
+    else if(rd.status==='processing'){ totalProcessing+=amt; countProcessing++; }
+    else { totalOwed+=amt; countOwed++; }
+  });
+  return {totalOwed,totalProcessing,totalRefunded,countOwed,countProcessing,countRefunded,totalClients:names.length,pendingCount:countOwed+countProcessing};
 }
 
 /* ── RAFFLE WHEEL ────────────────────────────────────────────────────────
@@ -1096,7 +1154,7 @@ function allItemSettlements() {
   }), {distributorDiff:0, clientDiff:0});
   return { rows, totals };
 }
-function ensureValidTab() { if(ui.activeTab!=='clients'&&ui.activeTab!=='fulfillment'&&!getItem(ui.activeTab)) ui.activeTab='clients'; }
+function ensureValidTab() { if(ui.activeTab!=='clients'&&ui.activeTab!=='fulfillment'&&ui.activeTab!=='refunds'&&!getItem(ui.activeTab)) ui.activeTab='clients'; }
 
 /* ── RENDER: DASHBOARD ──────────────────────────── */
 function renderDash() {
@@ -1395,6 +1453,32 @@ function syncFulfillmentMode() {
   document.body.classList.toggle('fulfillment-mode', ui.fulfillmentMode);
   btn.classList.toggle('active', ui.fulfillmentMode);
   btn.textContent = ui.fulfillmentMode ? '✕ Exit Fulfillment Mode' : '✅ Fulfillment Mode';
+}
+
+/* ── PANEL COLLAPSE ─────────────────────────────────────────────────────
+   Purely a decluttering aid — collapses a panel's body down to just its
+   header, independent of Presentation/Fulfillment Mode's panel-hiding
+   (those hide whole panels situationally; this is a standing per-panel
+   preference the user sets themselves). Persisted per-session, same as
+   hiddenCols, so it's remembered on reload but doesn't leak between
+   separate pre-order batches/sessions that might want different layouts. */
+const PANEL_KEYS = ['float','itemMaster','breakdown','distributor','ledger','sales','raffle'];
+function togglePanelCollapse(key) {
+  if(ui.collapsedPanels.has(key)) ui.collapsedPanels.delete(key); else ui.collapsedPanels.add(key);
+  save(); syncPanelCollapse();
+}
+function toggleCollapseAll() {
+  const allCollapsed = PANEL_KEYS.every(k=>ui.collapsedPanels.has(k));
+  ui.collapsedPanels = allCollapsed ? new Set() : new Set(PANEL_KEYS);
+  save(); syncPanelCollapse();
+}
+function syncPanelCollapse() {
+  document.querySelectorAll('.panel[data-panel]').forEach(el=>{
+    el.classList.toggle('collapsed', ui.collapsedPanels.has(el.dataset.panel));
+  });
+  const btn=$e('collapseAllToggle'); if(!btn) return;
+  const allCollapsed = PANEL_KEYS.every(k=>ui.collapsedPanels.has(k));
+  btn.textContent = allCollapsed ? '🗂️ Expand All' : '🗂️ Collapse All';
 }
 
 /* ── RENDER: RAFFLE WHEEL ────────────────────────── */
@@ -1929,10 +2013,12 @@ function renderLedger() {
   renderDistCrossCheck();  /* client/store order changes shift "Needed" in the distributor cross-check too */
 }
 function renderTabNav() {
-  const nav=$e('tabNav'), isC=ui.activeTab==='clients', isF=ui.activeTab==='fulfillment';
+  const nav=$e('tabNav'), isC=ui.activeTab==='clients', isF=ui.activeTab==='fulfillment', isR=ui.activeTab==='refunds';
   const fSummary=fulfillmentSummary(), fPending=fSummary.count-fSummary.shippedCount;
+  const rSummary=refundsSummary();
   let html=`<button type="button" class="tab-btn${isC?' active':''}" data-a="switch-tab" data-tab="clients">👥 Client Overview</button>`;
   html+=`<button type="button" class="tab-btn${isF?' active':''}" data-a="switch-tab" data-tab="fulfillment">✅ Fulfillment${fPending>0?`<span class="tab-count">${fPending}</span>`:''}</button>`;
+  html+=`<button type="button" class="tab-btn${isR?' active':''}" data-a="switch-tab" data-tab="refunds">💰 Refunds${rSummary.pendingCount>0?`<span class="tab-count">${rSummary.pendingCount}</span>`:''}</button>`;
   state.items.forEach(item=>{
     const active=ui.activeTab===item.id, cnt=itemOrders(item.id).length;
     const label=item.name.length>24?item.name.slice(0,22)+'…':item.name;
@@ -1943,6 +2029,7 @@ function renderTabNav() {
 function renderTabContent() {
   if(ui.activeTab==='clients') renderClientTab();
   else if(ui.activeTab==='fulfillment') renderFulfillmentTab();
+  else if(ui.activeTab==='refunds') renderRefundsTab();
   else renderItemTab(ui.activeTab);
 }
 
@@ -2198,6 +2285,80 @@ function renderFulfillmentTab() {
   area.innerHTML=html;
 }
 
+/* ── RENDER: REFUNDS TAB ───────────────────────────
+   Flat, client-level list (not per-order, not grouped/collapsible like
+   Client Overview or Fulfillment) — every client currently owed money,
+   sorted biggest-first, each with a live status/method/amount/date/note
+   record. The calculated "Refund Owed" figure and its Confirmed/Estimated
+   tag are read-only here (that's what Client Overview and the item's
+   distributor-actual-count toggle already control); this tab only adds
+   the ability to act on it. */
+function renderRefundsTab() {
+  const area=$e('tabContent'), names=refundEligibleClients();
+  if(!names.length){
+    area.innerHTML=`<div class="empty"><div class="empty-ico">💰</div><strong>No refunds owed right now</strong><span>When a client's allocated total comes in under what they paid, they'll show up here.</span></div>`;
+    return;
+  }
+
+  const summary=refundsSummary();
+  let html=`<div class="brk-summary">
+    <div class="brk-stat"><span class="brk-stat-label" style="color:var(--red)">Owed (${summary.countOwed})</span><span class="brk-stat-val mono kpi-neg">${php(summary.totalOwed)}</span></div>
+    <div class="brk-stat"><span class="brk-stat-label" style="color:var(--gold)">Processing (${summary.countProcessing})</span><span class="brk-stat-val mono kpi-gold">${php(summary.totalProcessing)}</span></div>
+    <div class="brk-stat"><span class="brk-stat-label" style="color:var(--green)">Refunded (${summary.countRefunded})</span><span class="brk-stat-val mono kpi-pos">${php(summary.totalRefunded)}</span></div>
+    <div class="brk-stat"><span class="brk-stat-label">Clients Owed</span><span class="brk-stat-val mono">${summary.totalClients}</span></div>
+  </div>`;
+
+  const statusFilters=[['all','All'],['owed','Owed'],['processing','Processing'],['refunded','Refunded']];
+  html+=`<div class="ledger-toolbar" style="margin-top:0">
+    <div class="lt-left">
+      ${statusFilters.map(([key,label])=>`<button type="button" class="lt-btn${ui.refundStatusFilter===key?' active':''}" data-a="refund-filter-status" data-val="${key}">${esc(label)}</button>`).join('')}
+    </div>
+  </div>`;
+
+  let rows=names.map(name=>{
+    const s=clientSummary(name), rd=getClientRefundData(name), confirmed=clientRefundConfirmed(name);
+    const itemCount=new Set(ordersForClient(name).map(o=>o.itemId)).size;
+    return {name,s,rd,confirmed,itemCount};
+  });
+  if(ui.refundStatusFilter!=='all') rows=rows.filter(r=>r.rd.status===ui.refundStatusFilter);
+  rows.sort((a,b)=>b.s.net-a.s.net);
+
+  if(!rows.length){
+    html+=`<div class="empty"><div class="empty-ico">🔍</div><strong>No refunds match this filter</strong><span>Try a different status above.</span></div>`;
+    area.innerHTML=html; return;
+  }
+
+  const methods=['Cash','GCash','Bank','Store Credit'];
+  let tbody='';
+  rows.forEach(r=>{
+    const confirmTag=r.confirmed?`<span class="brk-profit-tag confirmed">Confirmed</span>`:`<span class="brk-profit-tag estimated">Estimated</span>`;
+    const amountVal=(r.rd.actualAmount!=null&&r.rd.actualAmount!=='')?esc(r.rd.actualAmount):'';
+    const dateVal=r.rd.date?new Date(r.rd.date).toISOString().slice(0,10):'';
+    tbody+=`<tr data-client="${esc(r.name)}">
+      <td class="td-bold">👤 ${esc(r.name)} <span class="badge">${r.itemCount} item${r.itemCount===1?'':'s'}</span></td>
+      <td class="td-r" style="white-space:nowrap"><span class="pill pill-ref">${php(r.s.net)}</span><br><span style="margin-top:4px;display:inline-block">${confirmTag}</span></td>
+      <td class="td-c"><select class="fi" style="min-width:110px" data-a="refund-status" data-client="${esc(r.name)}">
+        <option value="owed"${r.rd.status==='owed'?' selected':''}>Owed</option>
+        <option value="processing"${r.rd.status==='processing'?' selected':''}>Processing</option>
+        <option value="refunded"${r.rd.status==='refunded'?' selected':''}>Refunded</option>
+      </select></td>
+      <td class="td-c"><select class="fi" style="min-width:120px" data-a="refund-method" data-client="${esc(r.name)}">
+        <option value=""${!r.rd.method?' selected':''}>—</option>
+        ${methods.map(m=>`<option value="${m}"${r.rd.method===m?' selected':''}>${m}</option>`).join('')}
+      </select></td>
+      <td class="td-r"><input class="ci num sm" type="number" step="0.01" min="0" placeholder="${r.s.net.toFixed(2)}" value="${amountVal}" data-a="refund-amount" data-client="${esc(r.name)}" title="Leave blank to use the calculated amount"></td>
+      <td class="td-c"><input class="ci" type="date" style="width:138px" value="${dateVal}" data-a="refund-date" data-client="${esc(r.name)}"></td>
+      <td><input class="ci" style="width:100%;min-width:130px" placeholder="Add note…" value="${esc(r.rd.note||'')}" data-a="refund-note" data-client="${esc(r.name)}"></td>
+    </tr>`;
+  });
+
+  html+=`<div class="tbl-wrap"><table class="ledger-tbl">
+    <thead><tr><th>Client</th><th class="r">Refund Owed</th><th class="c">Status</th><th class="c">Method</th><th class="r">Amount Refunded</th><th class="c">Date</th><th>Note</th></tr></thead>
+    <tbody>${tbody}</tbody></table></div>`;
+
+  area.innerHTML=html;
+}
+
 /* ── RENDER: ITEM TAB ───────────────────────────── */
 function renderItemTab(itemId) {
   const area=$e('tabContent'), item=getItem(itemId);
@@ -2319,7 +2480,7 @@ function renderItemTab(itemId) {
   area.innerHTML=html;
 }
 
-function renderAll(){renderDash();renderFloatBreakdown();renderItems();syncOrderForm();renderLedger();renderBasket();syncDistForm();renderDistPOList();renderDistBasket();syncSaleItemSelect();renderStoreSalesPanel();syncRaffleItemSelect();syncRaffleSoundToggle();syncPresentationMode();syncFulfillmentMode();syncSessionPill();renderRaffleArea();}
+function renderAll(){renderDash();renderFloatBreakdown();renderItems();syncOrderForm();renderLedger();renderBasket();syncDistForm();renderDistPOList();renderDistBasket();syncSaleItemSelect();renderStoreSalesPanel();syncRaffleItemSelect();syncRaffleSoundToggle();syncPresentationMode();syncFulfillmentMode();syncSessionPill();renderRaffleArea();syncPanelCollapse();}
 
 /* ── ACTIONS: ITEMS ─────────────────────────────── */
 $e('itemForm').addEventListener('submit',function(e){
@@ -2662,7 +2823,10 @@ function buildClientMessageText(name) {
   });
   lines.push('',`Total downpayment received: ${php(summary.paid)}`,`Total value of allocated items: ${php(summary.val)}`,'');
   if(summary.isZero) lines.push('Your account is fully settled — no refund or balance due.');
-  else if(summary.isRefund) lines.push(`You have a REFUND of ${php(summary.net)} coming your way!`);
+  else if(summary.isRefund){
+    lines.push(`You have a REFUND of ${php(summary.net)} coming your way!`);
+    lines.push('','To process this, please send us your preferred refund details (Bank Account, GCash number, or GCash QR) and we\'ll get it sent over.');
+  }
   else lines.push(`You have a remaining BALANCE of ${php(Math.abs(summary.net))} to settle upon pickup.`);
   lines.push('','Thank you for your pre-order!');
   return lines.join('\n');
@@ -3010,6 +3174,8 @@ document.addEventListener('click',function(e){
       const ffc=btn.dataset.client;
       if(ui.collapsedFulfillmentClients.has(ffc)) ui.collapsedFulfillmentClients.delete(ffc); else ui.collapsedFulfillmentClients.add(ffc);
       renderTabContent(); break;
+    case 'refund-filter-status':
+      ui.refundStatusFilter=btn.dataset.val; renderTabContent(); save(); break;
     case 'edit-sale':   editSale(id); break;
     case 'save-sale':   saveSaleEdit(id); break;
     case 'cancel-sale': cancelSaleEdit(); break;
@@ -3028,6 +3194,8 @@ document.addEventListener('click',function(e){
       if(ui.presentationMode) window.scrollTo({top:0,behavior:'smooth'});
       break;
     case 'toggle-fulfillment-mode': toggleFulfillmentMode(); break;
+    case 'toggle-panel-collapse': togglePanelCollapse(btn.dataset.panel); break;
+    case 'toggle-collapse-all': toggleCollapseAll(); break;
     case 'toggle-session-panel':
       ui.showSessionPanel=!ui.showSessionPanel; renderSessionPanel(); break;
     case 'switch-session':    switchSession(id); break;
@@ -3098,6 +3266,33 @@ document.addEventListener('change',function(e){
   }
   if(a==='lbc-field'){
     setClientLBCField(el.dataset.client,el.dataset.field,el.value);
+    save();   /* no re-render — avoids losing focus mid-edit */
+  }
+  if(a==='refund-status'){
+    const name=el.dataset.client;
+    setClientRefundField(name,'status',el.value);
+    /* Auto-fill today's date the first time a refund is marked Refunded,
+       same "fill on transition, never clobber an existing value" pattern
+       as Fulfillment's shippedAt — but unlike shipped/unshipped, downgrading
+       the status later never clears a date already on record. */
+    if(el.value==='refunded' && !getClientRefundData(name).date) setClientRefundField(name,'date',Date.now());
+    renderLedger(); save();   /* status shifts the tab-nav pending badge too */
+  }
+  if(a==='refund-method'){
+    setClientRefundField(el.dataset.client,'method',el.value);
+    renderTabContent(); save();
+  }
+  if(a==='refund-amount'){
+    const v=el.value.trim();
+    setClientRefundField(el.dataset.client,'actualAmount',v===''?null:Math.max(0,Number(v)||0));
+    renderTabContent(); save();   /* amount can move the Owed/Processing/Refunded totals bar */
+  }
+  if(a==='refund-date'){
+    setClientRefundField(el.dataset.client,'date',el.value?new Date(el.value+'T00:00:00').getTime():null);
+    save();
+  }
+  if(a==='refund-note'){
+    setClientRefundField(el.dataset.client,'note',el.value);
     save();   /* no re-render — avoids losing focus mid-edit */
   }
 });
@@ -3327,7 +3522,9 @@ function applySessionBlob(d){
   state.sales=Array.isArray(d.sales)?d.sales.map(s=>Object.assign({shipped:false,notes:'',buyerName:'Walk-in'},s)):[];
   state.clientFulfillmentData=(d.clientFulfillmentData&&typeof d.clientFulfillmentData==='object')?d.clientFulfillmentData:{};
   state.distributorOrders=Array.isArray(d.distributorOrders)?d.distributorOrders:[];
+  state.refunds=(d.refunds&&typeof d.refunds==='object')?d.refunds:{};
   ui.hiddenCols=Array.isArray(d.hiddenCols)?new Set(d.hiddenCols):new Set(['float']);
+  ui.collapsedPanels=Array.isArray(d.collapsedPanels)?new Set(d.collapsedPanels):new Set();
   ui.sortClients=d.sortClients||'alpha';
   ui.itemTabSort=d.itemTabSort||'date';
   ui.raffleSoundMuted=typeof d.raffleSoundMuted==='boolean'?d.raffleSoundMuted:false;
@@ -3342,6 +3539,7 @@ function resetTransientUI(){
   ui.basket=[]; ui.distBasket=[]; ui.raffleSelectedItem=null; ui.raffleSpinning={};
   ui.collapsedClients=new Set(); ui.collapsedFulfillmentClients=new Set(); ui.collapsedPOs=new Set();
   ui.fulfillmentStatusFilter='all'; ui.fulfillmentLbcOnly=false;
+  ui.refundStatusFilter='all';
   ui.showColPicker=false; ui.showSessionPanel=false;
 }
 function loadActiveSession(){
@@ -3350,7 +3548,7 @@ function loadActiveSession(){
   applySessionBlob(d);
 }
 function buildSessionExportBlob(){
-  return {items:state.items,orders:state.orders,raffles:state.raffles,sales:state.sales,clientFulfillmentData:state.clientFulfillmentData,distributorOrders:state.distributorOrders,hiddenCols:[...ui.hiddenCols],sortClients:ui.sortClients,itemTabSort:ui.itemTabSort,raffleSoundMuted:ui.raffleSoundMuted,presentationMode:ui.presentationMode,fulfillmentMode:ui.fulfillmentMode};
+  return {items:state.items,orders:state.orders,raffles:state.raffles,sales:state.sales,clientFulfillmentData:state.clientFulfillmentData,distributorOrders:state.distributorOrders,refunds:state.refunds,hiddenCols:[...ui.hiddenCols],collapsedPanels:[...ui.collapsedPanels],sortClients:ui.sortClients,itemTabSort:ui.itemTabSort,raffleSoundMuted:ui.raffleSoundMuted,presentationMode:ui.presentationMode,fulfillmentMode:ui.fulfillmentMode};
 }
 function slugify(s){ return String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')||'session'; }
 function timeAgo(iso){
@@ -3389,7 +3587,7 @@ function createNewSession(){
   const id=uid(), now=new Date().toISOString();
   lib.push({id,name:trimmed,createdAt:now,updatedAt:now,itemCount:0,orderCount:0});
   setLibrary(lib);
-  localStorage.setItem(sessionDataKey(id), JSON.stringify({items:[],orders:[],raffles:{},sales:[],clientFulfillmentData:{},distributorOrders:[],hiddenCols:['float'],sortClients:'alpha',itemTabSort:'date',raffleSoundMuted:false,presentationMode:false,fulfillmentMode:false}));
+  localStorage.setItem(sessionDataKey(id), JSON.stringify({items:[],orders:[],raffles:{},sales:[],clientFulfillmentData:{},distributorOrders:[],hiddenCols:['float'],collapsedPanels:[],sortClients:'alpha',itemTabSort:'date',raffleSoundMuted:false,presentationMode:false,fulfillmentMode:false}));
   switchSession(id);
 }
 function renameSession(id){
@@ -3433,10 +3631,12 @@ function exportSessionById(id){
 
 /* ── RENDER: SESSION SWITCHER ─────────────────────── */
 function syncSessionPill(){
-  const nameEl=$e('sessionPillName'), pill=$e('sessionPillBtn'); if(!nameEl||!pill) return;
+  const nameEl=$e('sessionPillName'), pill=$e('sessionPillBtn'), exportBtn=$e('exportBtn'); if(!nameEl||!pill) return;
   const meta=getLibrary().find(s=>s.id===ui.activeSessionId);
-  nameEl.textContent=meta?meta.name:'Session';
+  const name=meta?meta.name:'Session';
+  nameEl.textContent=name;
   pill.classList.toggle('active', ui.showSessionPanel);
+  if(exportBtn) exportBtn.textContent=`⭳ Export "${name}"`;
 }
 function renderSessionPanel(){
   const overlay=$e('sessionOverlay'); if(!overlay) return;
@@ -3498,7 +3698,7 @@ $e('importInput').addEventListener('change',function(e){
       if(name===null) return;
       const trimmed=name.trim()||defaultName;
       const id=uid(), now=new Date().toISOString();
-      const blob={items:d.items,orders:d.orders,raffles:(d.raffles&&typeof d.raffles==='object')?d.raffles:{},sales:Array.isArray(d.sales)?d.sales:[],clientFulfillmentData:(d.clientFulfillmentData&&typeof d.clientFulfillmentData==='object')?d.clientFulfillmentData:{},distributorOrders:Array.isArray(d.distributorOrders)?d.distributorOrders:[],hiddenCols:Array.isArray(d.hiddenCols)?d.hiddenCols:['float'],sortClients:d.sortClients||'alpha',itemTabSort:d.itemTabSort||'date',raffleSoundMuted:!!d.raffleSoundMuted,presentationMode:false,fulfillmentMode:false};
+      const blob={items:d.items,orders:d.orders,raffles:(d.raffles&&typeof d.raffles==='object')?d.raffles:{},sales:Array.isArray(d.sales)?d.sales:[],clientFulfillmentData:(d.clientFulfillmentData&&typeof d.clientFulfillmentData==='object')?d.clientFulfillmentData:{},distributorOrders:Array.isArray(d.distributorOrders)?d.distributorOrders:[],hiddenCols:Array.isArray(d.hiddenCols)?d.hiddenCols:['float'],collapsedPanels:Array.isArray(d.collapsedPanels)?d.collapsedPanels:[],sortClients:d.sortClients||'alpha',itemTabSort:d.itemTabSort||'date',raffleSoundMuted:!!d.raffleSoundMuted,presentationMode:false,fulfillmentMode:false};
       localStorage.setItem(sessionDataKey(id), JSON.stringify(blob));
       const lib=getLibrary();
       lib.push({id,name:trimmed,createdAt:now,updatedAt:now,itemCount:d.items.length,orderCount:d.orders.length});
