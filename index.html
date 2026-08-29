@@ -415,8 +415,13 @@ body.fulfillment-mode #orderLedgerPanel #tabNav { display:none !important; }
 .session-modal-sub { font-size:11.5px; color:var(--text-d); margin-top:2px; }
 .session-modal-hd-actions { display:flex; align-items:center; gap:6px; flex-shrink:0; }
 .session-new-btn { font-size:11.5px; padding:7px 12px; flex-shrink:0; white-space:nowrap; }
-.session-modal-search { padding:10px 18px; border-bottom:1px solid var(--border-s); flex-shrink:0; }
-.session-modal-search input { width:100%; }
+.session-modal-controls { display:flex; align-items:center; gap:8px; padding:10px 18px; border-bottom:1px solid var(--border-s); flex-shrink:0; }
+.session-modal-controls input { flex:1; min-width:0; }
+.session-sort-toggle { display:flex; border:1px solid var(--border); border-radius:var(--r-xs); overflow:hidden; flex-shrink:0; }
+.session-sort-toggle button { background:transparent; border:none; color:var(--text-d); font-size:11px; font-weight:600; padding:8px 10px; cursor:pointer; transition:all 0.13s; white-space:nowrap; }
+.session-sort-toggle button:hover { color:var(--text); }
+.session-sort-toggle button.active { background:var(--accent-gl); color:var(--accent-l); }
+.session-sort-toggle button + button { border-left:1px solid var(--border); }
 .session-modal-list { overflow-y:auto; padding:8px; flex:1; }
 .session-row { display:flex; align-items:flex-start; flex-wrap:wrap; gap:8px 10px; padding:11px 10px; border-radius:var(--r-xs); cursor:pointer; transition:background 0.13s; }
 .session-row:hover { background:var(--surf-3); }
@@ -643,7 +648,8 @@ let ui = {
   fulfillmentModePrevTab: 'clients',  /* remembers which ledger tab was open before Fulfillment Mode locked it to 'fulfillment' */
   activeSessionId:  null,     /* id of the currently loaded session in the Session Library (see SESSION LIBRARY) */
   showSessionPanel: false,
-  sessionSearchQuery: ''      /* filter text typed into the session switcher's search box (only shown once there are several sessions) */
+  sessionSearchQuery: '',     /* filter text typed into the session switcher's search box (only shown once there are several sessions) */
+  sessionSortMode: 'recent'   /* 'recent' (last updated first, default) or 'alpha' (A–Z by name) — toggled in the session switcher */
 };
 
 /* ── UTILITIES ──────────────────────────────────── */
@@ -3218,6 +3224,9 @@ document.addEventListener('click',function(e){
       ui.showSessionPanel=!ui.showSessionPanel;
       if(ui.showSessionPanel) ui.sessionSearchQuery='';
       renderSessionPanel(); break;
+    case 'set-session-sort':
+      ui.sessionSortMode=btn.dataset.mode==='alpha'?'alpha':'recent';
+      renderSessionPanel(); break;
     case 'switch-session':    switchSession(id); break;
     case 'new-session':       createNewSession(); break;
     case 'rename-session':    renameSession(id); break;
@@ -3618,6 +3627,15 @@ function createNewSession(){
   setLibrary(lib);
   localStorage.setItem(sessionDataKey(id), JSON.stringify({items:[],orders:[],raffles:{},sales:[],clientFulfillmentData:{},distributorOrders:[],hiddenCols:['float'],collapsedPanels:[],sortClients:'alpha',itemTabSort:'date',raffleSoundMuted:false,presentationMode:false,fulfillmentMode:false}));
   switchSession(id);
+  touchSessionUpdatedAt(id);   /* switchSession()'s save() re-stamps the session we just left a
+                                   moment after `now` above was captured, which could otherwise
+                                   leave the brand-new session ranked below it in Recent order */
+}
+/* Re-stamps a session's updatedAt to "right now" without touching its live data — used where a
+   session should visibly jump to the top of Recent order even though nothing in it changed. */
+function touchSessionUpdatedAt(id){
+  const lib=getLibrary(); const meta=lib.find(s=>s.id===id); if(!meta) return;
+  meta.updatedAt=new Date().toISOString(); setLibrary(lib);
 }
 function renameSession(id){
   const lib=getLibrary(); const meta=lib.find(s=>s.id===id); if(!meta) return;
@@ -3677,10 +3695,17 @@ function renderSessionPanel(){
   syncSessionPill();
   if(!ui.showSessionPanel){ overlay.innerHTML=''; return; }
 
-  const allLib=[...getLibrary()].sort((a,b)=>new Date(b.updatedAt)-new Date(a.updatedAt));
+  const allLib=getLibrary();
+  if(ui.sessionSortMode==='alpha'){
+    allLib.sort((a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base'}));
+  } else {
+    allLib.sort((a,b)=>new Date(b.updatedAt)-new Date(a.updatedAt));
+  }
   const q=ui.sessionSearchQuery.trim().toLowerCase();
   const lib=q?allLib.filter(s=>s.name.toLowerCase().includes(q)):allLib;
   const showSearch=allLib.length>5;
+  const showControls=allLib.length>1;
+  const sortMode=ui.sessionSortMode==='alpha'?'alpha':'recent';
 
   const rows=lib.map(s=>{
     const isCurrent=s.id===ui.activeSessionId;
@@ -3713,7 +3738,13 @@ function renderSessionPanel(){
           <button type="button" class="icon-btn" data-a="toggle-session-panel" title="Close">✕</button>
         </div>
       </div>
-      ${showSearch?`<div class="session-modal-search"><input type="text" class="fi" id="sessionSearchInput" placeholder="Search sessions…" value="${esc(ui.sessionSearchQuery)}"></div>`:''}
+      ${showControls?`<div class="session-modal-controls">
+        ${showSearch?`<input type="text" class="fi" id="sessionSearchInput" placeholder="Search sessions…" value="${esc(ui.sessionSearchQuery)}">`:''}
+        <div class="session-sort-toggle" role="group" aria-label="Sort sessions">
+          <button type="button" class="${sortMode==='recent'?'active':''}" data-a="set-session-sort" data-mode="recent">Recent</button>
+          <button type="button" class="${sortMode==='alpha'?'active':''}" data-a="set-session-sort" data-mode="alpha">A–Z</button>
+        </div>
+      </div>`:''}
       <div class="session-modal-list">${rows}</div>
     </div>
   </div>`;
