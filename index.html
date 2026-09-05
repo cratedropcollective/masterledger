@@ -39,13 +39,15 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
   --bg:        #0d1117; --surf:     #161b27; --surf-2:  #1e2538; --surf-3:  #26304a;
-  --border:    #252d42; --border-s: #1c2335;
+  --border:    #313b5c; --border-s: #1c2335;
   --accent:    #7c6ff7; --accent-l: #a89cf7; --accent-gl: rgba(124,111,247,0.13); --accent-gl2: rgba(124,111,247,0.22);
   --green:  #4fd1a0; --green-s:  rgba(79,209,160,0.13);
   --red:    #f06565; --red-s:    rgba(240,101,101,0.13);
   --gold:   #f4c553; --gold-s:   rgba(244,197,83,0.13);
-  --text:   #e2e4ef; --text-d:   #8b91a8; --text-f: #4f5670;
+  --amber:  #f2994a; --amber-s:  rgba(242,153,74,0.15);   /* distinct from --gold — reserved for "funded by float" so it reads apart from the "Store" badge at a glance */
+  --text:   #e2e4ef; --text-d:   #9ca1b5; --text-f: #6f789a;
   --r:11px; --r-s:7px; --r-xs:5px;
+  --shadow-card: 0 1px 0 rgba(255,255,255,0.03) inset, 0 10px 24px -14px rgba(0,0,0,0.55);
   --fd:'Space Grotesk',system-ui,sans-serif;
   --fb:'Inter',system-ui,sans-serif;
   --fm:'IBM Plex Mono','Courier New',monospace;
@@ -53,8 +55,14 @@
 body { background:var(--bg); background-image:radial-gradient(ellipse 900px 500px at 85% -80px,rgba(124,111,247,0.07),transparent 65%); color:var(--text); font-family:var(--fb); font-size:13.5px; line-height:1.5; -webkit-font-smoothing:antialiased; min-height:100vh; }
 ::selection { background:rgba(124,111,247,0.28); color:#fff; }
 input,select,button { font-family:inherit; font-size:inherit; color:inherit; }
-input:focus,select:focus { outline:2px solid var(--accent); outline-offset:1px; }
-button:focus { outline:2px solid var(--accent); outline-offset:1px; }
+/* Keyboard-only focus ring: a soft glow that matches the accent instead of the browser
+   default, and only appears for keyboard navigation (:focus-visible) so clicking with a
+   mouse doesn't flash a ring on every button and cell — the border/background change already
+   used across inputs still gives immediate feedback either way. */
+input:focus,select:focus,button:focus { outline:none; }
+input:focus-visible,select:focus-visible,button:focus-visible {
+  outline:2px solid var(--accent); outline-offset:2px; border-radius:var(--r-xs);
+}
 .mono { font-family:var(--fm); font-variant-numeric:tabular-nums; }
 
 /* ── LAYOUT ───────────────────────────────────────── */
@@ -67,6 +75,22 @@ button:focus { outline:2px solid var(--accent); outline-offset:1px; }
 .brand-text h1 { font-family:var(--fd); font-size:18px; font-weight:700; letter-spacing:-0.01em; }
 .brand-text p  { font-size:12px; color:var(--text-d); margin-top:2px; }
 .header-actions { display:flex; gap:9px; align-items:center; flex-wrap:wrap; }
+
+/* ── SECTION NAV ──────────────────────────────────── */
+.section-nav { position:sticky; top:0; z-index:140; display:flex; overflow-x:auto; background:var(--bg); border-bottom:1px solid var(--border-s); margin-bottom:22px; scrollbar-width:thin; scrollbar-color:var(--surf-3) transparent; }
+.section-nav::-webkit-scrollbar { height:4px; } .section-nav::-webkit-scrollbar-thumb { background:var(--surf-3); border-radius:2px; }
+.section-nav-btn { flex-shrink:0; display:inline-flex; align-items:center; gap:6px; padding:12px 15px; font-size:12.5px; font-weight:500; color:var(--text-d); background:transparent; border:none; border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap; transition:all 0.14s; }
+.section-nav-btn:hover { color:var(--text); background:rgba(255,255,255,0.025); }
+.section-nav-btn.active { color:var(--accent-l); border-bottom-color:var(--accent); font-weight:600; background:var(--accent-gl); }
+.section-nav-btn-all { border-right:1px solid var(--border-s); margin-right:2px; }
+@media (max-width:580px) { .section-nav-btn { padding:10px 11px; font-size:12px; } }
+/* A focused single-panel tab (anything but "All") hides the dashboard and every other
+   panel outright — a dedicated single-section page rather than a collapsed sliver. */
+.workspace-hidden { display:none !important; }
+/* Both focus modes below already hide the dashboard/most panels, so a 7-way jump nav has
+   nothing useful left to jump to — hide it rather than leave dead links to display:none panels. */
+body.presentation-mode .section-nav,
+body.fulfillment-mode .section-nav { display:none !important; }
 
 /* ── BUTTONS ──────────────────────────────────────── */
 .btn { display:inline-flex; align-items:center; gap:7px; padding:9px 16px; border-radius:var(--r-s); font-weight:500; font-size:13px; cursor:pointer; border:1px solid transparent; transition:all 0.14s; white-space:nowrap; }
@@ -85,17 +109,17 @@ button:focus { outline:2px solid var(--accent); outline-offset:1px; }
 
 /* ── DASHBOARD ────────────────────────────────────── */
 .dashboard { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:24px; }
-.kpi { background:var(--surf); border:1px solid var(--border); border-radius:var(--r); padding:20px 22px; position:relative; overflow:hidden; }
+.kpi { background:var(--surf); border:1px solid var(--border); border-radius:var(--r); padding:20px 22px; position:relative; overflow:hidden; box-shadow:var(--shadow-card); }
 .kpi::after { content:''; position:absolute; inset:-60%; background:conic-gradient(from 0deg,transparent 0%,rgba(124,111,247,0.05) 12%,rgba(79,209,160,0.04) 24%,rgba(244,197,83,0.04) 36%,rgba(240,101,101,0.03) 48%,transparent 52%); animation:foil 10s linear infinite; pointer-events:none; }
 @keyframes foil { to { transform:rotate(360deg); } }
 @media (prefers-reduced-motion:reduce) { .kpi::after { animation:none; } }
 .kpi .k-label { font-size:10px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-d); font-weight:600; margin-bottom:10px; }
 .kpi .k-value { font-family:var(--fd); font-size:26px; font-weight:600; line-height:1.1; }
-.kpi .k-hint  { font-size:11px; color:var(--text-f); margin-top:5px; }
+.kpi .k-hint  { font-size:11px; color:var(--text-d); margin-top:5px; }
 .kpi-pos { color:var(--green); } .kpi-neg { color:var(--red); } .kpi-gold { color:var(--gold); }
 
 /* ── PANELS ───────────────────────────────────────── */
-.panel { background:var(--surf); border:1px solid var(--border); border-radius:var(--r); margin-bottom:18px; overflow:hidden; }
+.panel { background:var(--surf); border:1px solid var(--border); border-radius:var(--r); margin-bottom:18px; overflow:hidden; box-shadow:var(--shadow-card); }
 .panel-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--border); background:var(--surf-2); }
 .panel-head-actions { display:flex; align-items:center; gap:8px; flex-shrink:0; }
 .panel-title { font-family:var(--fd); font-size:14.5px; font-weight:600; display:flex; align-items:center; gap:9px; }
@@ -113,7 +137,7 @@ button:focus { outline:2px solid var(--accent); outline-offset:1px; }
 .f2  { flex:2; min-width:190px; } .fsm { flex:0 1 100px; min-width:88px; } .fxs { flex:0 0 auto; }
 .ff label { font-size:10px; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-d); font-weight:600; }
 .fi { background:var(--surf-2); border:1px solid var(--border); border-radius:var(--r-s); padding:8px 10px; font-size:13px; color:var(--text); transition:border-color 0.14s; }
-.fi:hover { border-color:var(--surf-3); } .fi:focus { border-color:var(--accent); }
+.fi:hover { border-color:var(--surf-3); } .fi:focus { border-color:var(--accent); } .fi:focus-visible { box-shadow:0 0 0 3px var(--accent-gl2); }
 .fi.num { font-family:var(--fm); text-align:right; } .fi:disabled { color:var(--text-f); cursor:not-allowed; opacity:0.6; }
 select.fi { appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238b91a8'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 10px center; padding-right:28px; cursor:pointer; }
 .store-check { display:inline-flex; align-items:center; gap:7px; background:var(--surf-2); border:1px solid var(--border); border-radius:var(--r-s); padding:8px 12px; cursor:pointer; font-size:12.5px; color:var(--text-d); transition:all 0.14s; user-select:none; white-space:nowrap; }
@@ -124,7 +148,7 @@ select.fi { appearance:none; -webkit-appearance:none; background-image:url("data
 .form-hint.warn { color:var(--gold); }
 
 /* ── BASKET ───────────────────────────────────────── */
-.basket-panel { margin-top:16px; border:1px solid var(--gold); border-radius:var(--r-s); overflow:hidden; background:var(--surf-2); animation:basketIn 0.18s ease; }
+.basket-panel { margin-top:16px; border:1px solid var(--gold); border-radius:var(--r-s); overflow:hidden; background:var(--surf-2); animation:basketIn 0.18s ease; box-shadow:var(--shadow-card), 0 0 0 1px rgba(244,197,83,0.08); }
 @keyframes basketIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
 .basket-hd { display:flex; align-items:center; justify-content:space-between; padding:11px 16px; background:var(--gold-s); border-bottom:1px solid rgba(244,197,83,0.18); gap:10px; flex-wrap:wrap; }
 .basket-hd-left { display:flex; align-items:center; gap:10px; }
@@ -150,16 +174,18 @@ thead th { background:var(--surf-2); padding:9px 11px; text-align:left; font-siz
 thead th.r { text-align:right; } thead th.c { text-align:center; }
 tbody td { padding:8px 11px; border-bottom:1px solid var(--border-s); vertical-align:middle; }
 tbody tr:last-child td { border-bottom:none; }
-tbody tr:hover td { background:rgba(255,255,255,0.012); }
+tbody tr:hover td { background:rgba(124,111,247,0.05); }
 .td-r { text-align:right; font-family:var(--fm); } .td-c { text-align:center; } .td-dim { color:var(--text-d); } .td-bold { font-weight:600; }
 .ci { background:var(--surf-2); border:1px solid var(--border); border-radius:var(--r-xs); padding:5px 8px; font-size:13px; }
 .ci:focus { border-color:var(--accent); outline:none; }
+.ci:focus-visible { box-shadow:0 0 0 3px var(--accent-gl2); }
 .ci.num { font-family:var(--fm); text-align:right; } .ci.sm { width:80px; } .ci.md { width:130px; }
 
 /* ── ITEMS TABLE ──────────────────────────────────── */
 .items-tbl { min-width:780px; }
 .alloc-input { background:var(--surf-2); border:1px solid var(--border); border-radius:var(--r-xs); padding:5px 7px; font-family:var(--fm); font-size:12.5px; text-align:right; width:60px; color:var(--text); transition:border-color 0.14s; }
 .alloc-input:focus { border-color:var(--accent); outline:none; }
+.alloc-input:focus-visible { box-shadow:0 0 0 3px var(--accent-gl2); }
 .alloc-suffix { font-size:11px; color:var(--text-d); margin-left:3px; }
 
 /* ── LEDGER TOOLBAR ───────────────────────────────── */
@@ -178,7 +204,7 @@ tbody tr:hover td { background:rgba(255,255,255,0.012); }
   background:var(--surf-2); border:1px solid var(--border); border-radius:var(--r-s);
   padding:14px 16px; min-width:210px; max-width:calc(100vw - 32px); box-shadow:0 10px 30px rgba(0,0,0,0.5);
 }
-.col-pick-hd { font-size:10px; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-f); font-weight:600; margin-bottom:10px; }
+.col-pick-hd { font-size:10px; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-d); font-weight:600; margin-bottom:10px; }
 .col-check { display:flex; align-items:center; gap:8px; padding:5px 0; font-size:12.5px; color:var(--text-d); cursor:pointer; transition:color 0.13s; }
 .col-check:hover { color:var(--text); }
 .col-check input { accent-color:var(--accent); width:14px; height:14px; cursor:pointer; }
@@ -231,12 +257,12 @@ tbody tr:hover td { background:rgba(255,255,255,0.012); }
 .brk-stat-val { font-family:var(--fd); font-size:19px; font-weight:600; }
 
 .brk-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(290px, 1fr)); gap:14px; }
-.brk-card { background:var(--surf-2); border:1px solid var(--border); border-radius:var(--r-s); padding:16px 18px; display:flex; flex-direction:column; gap:14px; transition:border-color 0.14s; }
+.brk-card { background:var(--surf-2); border:1px solid var(--border); border-radius:var(--r-s); padding:16px 18px; display:flex; flex-direction:column; gap:14px; transition:border-color 0.14s, box-shadow 0.14s; box-shadow:var(--shadow-card); }
 .brk-card:hover { border-color:var(--surf-3); }
 
 .brk-card-hd { display:flex; align-items:baseline; justify-content:space-between; gap:8px; padding-bottom:12px; border-bottom:1px solid var(--border-s); }
 .brk-card-name { font-family:var(--fd); font-size:14px; font-weight:700; line-height:1.3; }
-.brk-card-eta { font-size:11px; color:var(--text-f); white-space:nowrap; flex-shrink:0; }
+.brk-card-eta { font-size:11px; color:var(--text-d); white-space:nowrap; flex-shrink:0; }
 
 .brk-section { display:flex; flex-direction:column; gap:8px; }
 .brk-section-label { font-size:11.5px; color:var(--text-d); display:flex; align-items:center; justify-content:space-between; gap:8px; }
@@ -250,7 +276,7 @@ tbody tr:hover td { background:rgba(255,255,255,0.012); }
 .brk-bar-store  { background:linear-gradient(90deg, #d9a93a, var(--gold)); }
 
 .brk-legend { display:flex; gap:16px; font-size:11.5px; color:var(--text-d); }
-.brk-legend-empty { font-size:11.5px; color:var(--text-f); font-style:italic; }
+.brk-legend-empty { font-size:11.5px; color:var(--text-d); font-style:italic; }
 .brk-legend-item { display:inline-flex; align-items:center; gap:6px; }
 .brk-legend-item strong { color:var(--text); font-weight:600; }
 .brk-dot { width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
@@ -272,7 +298,7 @@ tbody tr:hover td { background:rgba(255,255,255,0.012); }
 .brk-profit-label { font-size:11.5px; color:var(--text-d); display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .brk-profit-value { font-family:var(--fd); font-size:20px; font-weight:700; color:var(--green); }
 .brk-profit-value.brk-profit-neg { color:var(--red); }
-.brk-profit-sub { font-size:11px; color:var(--text-f); font-family:var(--fm); }
+.brk-profit-sub { font-size:11px; color:var(--text-d); font-family:var(--fm); }
 .brk-profit-tag { font-family:var(--fm); font-size:9.5px; font-weight:700; padding:1px 7px; border-radius:20px; text-transform:uppercase; letter-spacing:0.04em; }
 .brk-profit-tag.confirmed { background:var(--green-s); color:var(--green); border:1px solid rgba(79,209,160,0.25); }
 .brk-profit-tag.estimated { background:var(--gold-s); color:var(--gold); border:1px solid rgba(244,197,83,0.25); }
@@ -286,13 +312,14 @@ tbody tr:hover td { background:rgba(255,255,255,0.012); }
 /* ── DISTRIBUTOR ORDERS ────────────────────────────── */
 .dist-check-tbl { min-width:520px; }
 .dist-check-tbl td, .dist-check-tbl th { white-space:nowrap; }
-.dist-check-empty-hint { color:var(--text-f); font-size:12px; margin-top:4px; }
+.dist-check-empty-hint { color:var(--text-d); font-size:12px; margin-top:4px; }
 .po-total-chip { font-family:var(--fm); font-size:11px; color:var(--text-d); }
 
 /* ── STORE BADGE ──────────────────────────────────── */
 .si-badge { display:inline-flex; align-items:center; background:var(--gold-s); color:var(--gold); border:1px solid rgba(244,197,83,0.25); font-size:9.5px; font-weight:700; font-family:var(--fm); padding:1px 6px; border-radius:3px; margin-left:6px; text-transform:uppercase; letter-spacing:0.04em; vertical-align:middle; }
-.float-badge { display:inline-flex; align-items:center; background:var(--gold-s); color:var(--gold); border:1px solid rgba(244,197,83,0.25); font-size:9.5px; font-weight:700; font-family:var(--fm); padding:1px 6px; border-radius:3px; margin-left:6px; text-transform:uppercase; letter-spacing:0.04em; vertical-align:middle; }
+.float-badge { display:inline-flex; align-items:center; background:var(--amber-s); color:var(--amber); border:1px solid rgba(242,153,74,0.3); font-size:9.5px; font-weight:700; font-family:var(--fm); padding:1px 6px; border-radius:3px; margin-left:6px; text-transform:uppercase; letter-spacing:0.04em; vertical-align:middle; }
 .raffle-winner-badge { display:inline-flex; align-items:center; background:var(--green-s); color:var(--green); border:1px solid rgba(79,209,160,0.25); font-size:9.5px; font-weight:700; font-family:var(--fm); padding:1px 6px; border-radius:3px; margin-left:6px; text-transform:uppercase; letter-spacing:0.04em; vertical-align:middle; }
+.discount-badge { display:inline-flex; align-items:center; background:var(--accent-gl); color:var(--accent-l); border:1px solid rgba(124,111,247,0.3); font-size:9.5px; font-weight:700; font-family:var(--fm); padding:1px 6px; border-radius:3px; margin-left:6px; text-transform:uppercase; letter-spacing:0.04em; vertical-align:middle; cursor:help; }
 
 /* ── FLOATING CAPITAL BREAKDOWN ───────────────────── */
 .fcb-summary { display:flex; flex-direction:column; gap:0; border:1px solid var(--border); border-radius:var(--r-s); overflow:hidden; }
@@ -306,13 +333,13 @@ tbody tr:hover td { background:rgba(255,255,255,0.012); }
 .fcb-row.fcb-total .fcb-val { font-size:19px; }
 .fcb-section-head { font-family:var(--fd); font-weight:700; font-size:14px; color:var(--text); margin:24px 0 12px; padding-top:20px; border-top:1px solid var(--border-s); }
 .fcb-section-head:first-child { margin-top:0; padding-top:0; border-top:none; }
-.fcb-section-sub { display:block; font-family:var(--fb); font-weight:400; font-size:11.5px; color:var(--text-f); margin-top:4px; letter-spacing:0; }
+.fcb-section-sub { display:block; font-family:var(--fb); font-weight:400; font-size:11.5px; color:var(--text-d); margin-top:4px; letter-spacing:0; }
 .fcb-totals-row td { background:var(--surf-3); font-family:var(--fd); border-top:2px solid var(--border); }
 
 /* ── EMPTY STATES ─────────────────────────────────── */
 .empty { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:46px 20px; gap:7px; text-align:center; border:1px dashed var(--border); border-radius:var(--r-s); margin-top:16px; }
 .empty-ico { font-size:28px; margin-bottom:4px; }
-.empty strong { color:var(--text-d); font-size:14px; } .empty span { color:var(--text-f); font-size:13px; max-width:360px; }
+.empty strong { color:var(--text-d); font-size:14px; } .empty span { color:var(--text-d); font-size:13px; max-width:360px; }
 
 /* ── TOAST ────────────────────────────────────────── */
 .toast { position:fixed; bottom:22px; right:22px; z-index:200; background:var(--surf-2); border:1px solid var(--border); border-left:3px solid var(--accent); padding:11px 16px; border-radius:8px; font-size:13px; box-shadow:0 8px 28px rgba(0,0,0,0.45); opacity:0; transform:translateY(8px); pointer-events:none; transition:opacity 0.18s,transform 0.18s; max-width:340px; }
@@ -357,7 +384,7 @@ tbody tr:hover td { background:rgba(255,255,255,0.012); }
 .raffle-winner-chip { display:flex; align-items:center; background:var(--gold-s); border:1px solid rgba(244,197,83,0.25); border-radius:6px; padding:6px 10px; font-size:12.5px; }
 .raffle-winner-chip .rw-num { font-family:var(--fm); color:var(--gold); font-weight:700; margin-right:8px; min-width:18px; }
 
-.raffle-empty-pool { text-align:center; color:var(--text-f); font-size:12.5px; padding:24px 10px; font-style:italic; border:1px dashed var(--border); border-radius:var(--r-xs); }
+.raffle-empty-pool { text-align:center; color:var(--text-d); font-size:12.5px; padding:24px 10px; font-style:italic; border:1px dashed var(--border); border-radius:var(--r-xs); }
 
 .raffle-sound-toggle { background:var(--surf-3); border:1px solid var(--border); color:var(--text-d); border-radius:20px; padding:5px 12px; font-size:11.5px; font-weight:600; cursor:pointer; transition:all 0.14s; }
 .raffle-sound-toggle:hover { border-color:var(--accent); color:var(--text); }
@@ -433,7 +460,7 @@ body.fulfillment-mode #orderLedgerPanel #tabNav { display:none !important; }
 .session-row.current .session-row-name { color:var(--accent-l); }
 .session-row-meta { font-size:11.5px; color:var(--text-d); margin-top:3px; }
 .session-row-actions { display:flex; gap:2px; flex-shrink:0; margin-left:auto; }
-.session-row-actions button { background:transparent; border:none; color:var(--text-f); cursor:pointer; padding:6px 8px; border-radius:4px; font-size:14px; transition:all 0.13s; line-height:1; }
+.session-row-actions button { background:transparent; border:none; color:var(--text-d); cursor:pointer; padding:6px 8px; border-radius:4px; font-size:14px; transition:all 0.13s; line-height:1; }
 .session-row-actions button:hover { background:var(--surf); color:var(--text); }
 .session-row-actions button.danger:hover { color:var(--red); }
 .session-current-badge { font-size:9px; text-transform:uppercase; letter-spacing:0.05em; color:var(--accent-l); font-weight:700; flex-shrink:0; background:var(--accent-gl); border:1px solid rgba(124,111,247,0.25); padding:2px 8px; border-radius:20px; }
@@ -472,6 +499,17 @@ body.fulfillment-mode #orderLedgerPanel #tabNav { display:none !important; }
       <label class="file-label">⭱ Upload Session<input type="file" id="importInput" accept="application/json" hidden></label>
     </div>
   </header>
+
+  <nav class="section-nav" id="sectionNav" aria-label="Jump to section">
+    <button type="button" class="section-nav-btn section-nav-btn-all active" data-a="set-workspace-view" data-panel="all">🏠 All</button>
+    <button type="button" class="section-nav-btn" data-a="set-workspace-view" data-panel="float">💰 Float</button>
+    <button type="button" class="section-nav-btn" data-a="set-workspace-view" data-panel="itemMaster">📦 Items</button>
+    <button type="button" class="section-nav-btn" data-a="set-workspace-view" data-panel="breakdown">📊 Breakdown</button>
+    <button type="button" class="section-nav-btn" data-a="set-workspace-view" data-panel="distributor">🚚 Distributor</button>
+    <button type="button" class="section-nav-btn" data-a="set-workspace-view" data-panel="ledger">📋 Ledger</button>
+    <button type="button" class="section-nav-btn" data-a="set-workspace-view" data-panel="sales">🛍️ Sales</button>
+    <button type="button" class="section-nav-btn" data-a="set-workspace-view" data-panel="raffle">🎡 Raffle</button>
+  </nav>
 
   <section class="dashboard">
     <div class="kpi"><div class="k-label">Floating Capital</div><div class="k-value mono kpi-pos" id="kpiFloat">₱0.00</div><div class="k-hint">Public DP collected − distributor DP required</div></div>
@@ -540,6 +578,7 @@ body.fulfillment-mode #orderLedgerPanel #tabNav { display:none !important; }
         <div class="ff f2"><label for="oItem">Item</label><select id="oItem" class="fi" required><option value="">— Select item —</option></select></div>
         <div class="ff fsm"><label for="oQty">Qty Ordered</label><input type="number" id="oQty" class="fi num" min="1" step="1" value="1" required></div>
         <div class="ff fsm"><label for="oPaid">Amount Paid</label><input type="number" id="oPaid" class="fi num" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="ff fsm"><label for="oPriceOverride" title="Leave blank to use the item's normal price. Fill in for a one-off discounted (or marked-up) price for this specific client's order.">Custom Price</label><input type="number" id="oPriceOverride" class="fi num" min="0" step="0.01" placeholder="default"></div>
         <div class="ff fxs" style="align-self:flex-end">
           <label class="store-check" id="storeCheckLabel"><input type="checkbox" id="oStore"> 🏪 Store Inventory</label>
         </div>
@@ -649,7 +688,8 @@ let ui = {
   activeSessionId:  null,     /* id of the currently loaded session in the Session Library (see SESSION LIBRARY) */
   showSessionPanel: false,
   sessionSearchQuery: '',     /* filter text typed into the session switcher's search box (only shown once there are several sessions) */
-  sessionSortMode: 'recent'   /* 'recent' (last updated first, default) or 'alpha' (A–Z by name) — toggled in the session switcher */
+  sessionSortMode: 'recent',  /* 'recent' (last updated first, default) or 'alpha' (A–Z by name) — toggled in the session switcher */
+  workspaceView: 'all'        /* 'all' (default full scrolling view) or one of PANEL_KEYS to show only that section as a focused single-panel view */
 };
 
 /* ── UTILITIES ──────────────────────────────────── */
@@ -682,6 +722,7 @@ function allocQtyRaw(order) {
 
 function dpPrice(order) {
   const item=getItem(order.itemId); if(!item) return 0;
+  if(order.priceOverride!=null && order.priceOverride!=='') return Number(order.priceOverride)||0;
   return order.storeInventory?(Number(item.costPrice)||0):(Number(item.srp)||0);
 }
 function requiredDP(itemId,qty,isStore) {
@@ -1427,18 +1468,25 @@ function syncOrderForm() {
   $e('orderForm').querySelectorAll('input,select,button[type="submit"]').forEach(el=>el.disabled=!has);
   updateOrderHint();
 }
+/* Reads the Custom Price field: null (use item's normal price) unless the shop owner typed a value. */
+function formPriceOverride() {
+  const v=$e('oPriceOverride').value;
+  return v===''?null:(parseFloat(v)||0);
+}
 function autoFillDP() {
   const itemId=$e('oItem').value, qty=parseInt($e('oQty').value,10)||0, isStore=$e('oStore').checked;
-  if(itemId&&qty>0) $e('oPaid').value=requiredDP(itemId,qty,isStore).toFixed(2);
+  const override=formPriceOverride();
+  const item=itemId?getItem(itemId):null, price=override!=null?override:(isStore?(item?item.costPrice:0):(item?item.srp:0));
+  if(itemId&&qty>0) $e('oPaid').value=(price*0.30*qty).toFixed(2);
   updateOrderHint();
 }
 function updateOrderHint() {
   const hint=$e('orderHint'), itemId=$e('oItem').value, qty=parseInt($e('oQty').value,10)||0;
-  const isStore=$e('oStore').checked, has=state.items.length>0;
+  const isStore=$e('oStore').checked, has=state.items.length>0, override=formPriceOverride();
   if(!has){hint.textContent='⚠ Add at least one item above before creating orders.';hint.className='form-hint warn';return;}
   if(itemId&&qty>0){
-    const item=getItem(itemId), price=isStore?(item?item.costPrice:0):(item?item.srp:0);
-    const dp=price*0.30*qty, lbl=isStore?'Cost':'SRP', note=isStore?' — store order generates ₱0.00 float':'';
+    const item=getItem(itemId), price=override!=null?override:(isStore?(item?item.costPrice:0):(item?item.srp:0));
+    const dp=price*0.30*qty, lbl=override!=null?'Custom Price':(isStore?'Cost':'SRP'), note=isStore?' — store order generates ₱0.00 float':'';
     hint.textContent=`30% DP auto-filled: ${php(dp)} (${php(price)} ${lbl} × 30% × ${qty} unit${qty===1?'':'s'})${note}`;
     hint.className='form-hint';
   } else {hint.textContent='';hint.className='form-hint';}
@@ -1460,6 +1508,7 @@ function toggleFulfillmentMode() {
   ui.fulfillmentMode = !ui.fulfillmentMode;
   if (ui.fulfillmentMode) {
     if (ui.presentationMode) { ui.presentationMode=false; syncPresentationMode(); }  /* the two hide overlapping panels — mutually exclusive */
+    if (ui.workspaceView!=='all') { ui.workspaceView='all'; try{localStorage.setItem(WORKSPACE_VIEW_KEY,'all');}catch(e){} syncWorkspaceView(); }  /* fulfillment mode has its own panel-hiding rules — don't let a focused tab fight them */
     ui.fulfillmentModePrevTab = ui.activeTab==='fulfillment' ? 'clients' : ui.activeTab;
     ui.activeTab = 'fulfillment';
   } else {
@@ -1483,6 +1532,10 @@ function syncFulfillmentMode() {
    hiddenCols, so it's remembered on reload but doesn't leak between
    separate pre-order batches/sessions that might want different layouts. */
 const PANEL_KEYS = ['float','itemMaster','breakdown','distributor','ledger','sales','raffle'];
+function loadWorkspaceView() {
+  try { const v=localStorage.getItem(WORKSPACE_VIEW_KEY); return (v==='all'||PANEL_KEYS.includes(v)) ? v : 'all'; }
+  catch(e) { return 'all'; }
+}
 function togglePanelCollapse(key) {
   if(ui.collapsedPanels.has(key)) ui.collapsedPanels.delete(key); else ui.collapsedPanels.add(key);
   save(); syncPanelCollapse();
@@ -1499,7 +1552,55 @@ function syncPanelCollapse() {
   const btn=$e('collapseAllToggle'); if(!btn) return;
   const allCollapsed = PANEL_KEYS.every(k=>ui.collapsedPanels.has(k));
   btn.textContent = allCollapsed ? '🗂️ Expand All' : '🗂️ Collapse All';
+  updateSectionNavActive();   /* collapsing/expanding shifts every panel below it, which can change which section counts as "current" */
 }
+
+/* ── SECTION NAV: "All" (default full-scroll view, jump + scroll-spy) vs a
+   focused single-panel tab (only that panel + its own nav visible, no scrolling
+   past other sections needed). ui.workspaceView is a browsing preference, not
+   session data — it's stored globally so it survives switching sessions, and is
+   forced back to 'all' whenever Presentation/Fulfillment Mode take over panel
+   visibility themselves, so the two hiding mechanisms never fight each other. */
+function setWorkspaceView(view) {
+  if(view!=='all' && !PANEL_KEYS.includes(view)) view='all';
+  ui.workspaceView=view;
+  try { localStorage.setItem(WORKSPACE_VIEW_KEY, view); } catch(e) {}
+  if(view!=='all' && ui.collapsedPanels.has(view)) { ui.collapsedPanels.delete(view); save(); syncPanelCollapse(); }   /* focusing a collapsed panel would just show an empty sliver, so expand it first */
+  syncWorkspaceView();
+  const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollTo({top:0, behavior:reduceMotion?'auto':'smooth'});
+}
+function syncWorkspaceView() {
+  const focused=ui.workspaceView!=='all';
+  const dash=document.querySelector('.dashboard');
+  if(dash) dash.classList.toggle('workspace-hidden', focused);
+  document.querySelectorAll('.panel[data-panel]').forEach(el=>{
+    el.classList.toggle('workspace-hidden', focused && el.dataset.panel!==ui.workspaceView);
+  });
+  const nav=$e('sectionNav'); if(!nav) return;
+  nav.querySelectorAll('.section-nav-btn').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.panel===ui.workspaceView);
+  });
+}
+function updateSectionNavActive() {
+  if(ui.workspaceView!=='all') return;   /* a specific tab is focused — its active state is fixed by syncWorkspaceView, nothing to spy on */
+  const nav=$e('sectionNav'); if(!nav) return;
+  if(document.body.classList.contains('presentation-mode')||document.body.classList.contains('fulfillment-mode')) return;   /* nav is hidden in these focus modes, nothing to spy on */
+  const threshold=nav.offsetHeight+20;
+  let current='all';   /* haven't scrolled past any section heading yet — "All" is the correct highlighted state, not nothing */
+  PANEL_KEYS.forEach(key=>{
+    const el=document.querySelector(`.panel[data-panel="${key}"]`);
+    if(el && el.getBoundingClientRect().top-threshold<=0) current=key;   /* last section whose heading has scrolled past the nav = the one currently in view */
+  });
+  nav.querySelectorAll('.section-nav-btn').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.panel===current);
+  });
+}
+let _navScrollRaf=null;
+window.addEventListener('scroll', () => {
+  if(_navScrollRaf) return;
+  _navScrollRaf=requestAnimationFrame(() => { updateSectionNavActive(); _navScrollRaf=null; });
+}, {passive:true});
 
 /* ── RENDER: RAFFLE WHEEL ────────────────────────── */
 function syncRaffleSoundToggle() {
@@ -2111,6 +2212,7 @@ function renderClientTab() {
         const siBadge=order.storeInventory?`<span class="si-badge">Store</span>`:'';
         const floatBadge=order.fundedByFloat?`<span class="float-badge">💰 Float</span>`:'';
         const raffleWinnerBadge=isRaffleWinnerForItem(order.clientName,order.itemId)?`<span class="raffle-winner-badge">🎉 Raffle Winner</span>`:'';
+        const discountBadge=(order.priceOverride!=null)?`<span class="discount-badge" title="Custom price for this client: ${php(order.priceOverride)}/unit">💲 Custom Price</span>`:'';
         const fcCls=fin.fc>0.005?'kpi-pos':fin.fc<-0.005?'kpi-neg':'td-dim';
         const iName=item?esc(item.name):`<span style="color:var(--red)">⚠ deleted</span>`;
         const iEta=item?esc(item.eta||'—'):'—';
@@ -2139,11 +2241,12 @@ function renderClientTab() {
         }
 
         const cellMap={
-          item:     `<td class="${item?'td-bold':''}">${iName} ${siBadge} ${floatBadge} ${raffleWinnerBadge}</td>`,
+          item:     `<td class="${item?'td-bold':''}">${iName} ${siBadge} ${floatBadge} ${raffleWinnerBadge} ${discountBadge}</td>`,
           eta:      `<td class="td-dim">${iEta}</td>`,
           qty:      isEdit?`<td class="td-r"><input id="eq_${esc(order.id)}" class="ci num sm" type="number" value="${esc(order.qtyOrdered)}" min="1"></td>`:`<td class="td-r mono">${esc(order.qtyOrdered)}</td>`,
           alloc:    `<td class="td-c">${allocInner}</td>`,
-          paid:     isEdit?`<td class="td-r"><input id="ep_${esc(order.id)}" class="ci num sm" type="number" value="${esc(order.amountPaid)}" min="0" step="0.01"></td>`:`<td class="td-r mono">${php(order.amountPaid)}</td>`,
+          paid:     isEdit?`<td class="td-r"><input id="ep_${esc(order.id)}" class="ci num sm" type="number" value="${esc(order.amountPaid)}" min="0" step="0.01">
+              <input id="epx_${esc(order.id)}" class="ci num sm" style="margin-top:4px;display:block" type="number" value="${order.priceOverride!=null?esc(order.priceOverride):''}" min="0" step="0.01" placeholder="${item?php(order.storeInventory?item.costPrice:item.srp):'default'} price" title="Custom price/unit for this order — leave blank to use the item's normal price"></td>`:`<td class="td-r mono">${php(order.amountPaid)}</td>`,
           amtAlloc: `<td class="td-r mono td-dim">${php(fin.srpValueAlloc)}</td>`,
           float:    `<td class="td-r mono ${fcCls}">${php(fin.fc)}</td>`,
           refund:   `<td class="td-r">${refCell}</td>`,
@@ -2416,6 +2519,7 @@ function renderItemTab(itemId) {
     const siBadge=order.storeInventory?`<span class="si-badge">Store</span>`:'';
     const floatBadge=order.fundedByFloat?`<span class="float-badge">💰 Float</span>`:'';
     const raffleWinnerBadge=isRaffleWinnerForItem(order.clientName,order.itemId)?`<span class="raffle-winner-badge">🎉 Raffle Winner</span>`:'';
+    const discountBadge=(order.priceOverride!=null)?`<span class="discount-badge" title="Custom price for this client: ${php(order.priceOverride)}/unit">💲 Custom Price</span>`:'';
     const fcCls=fin.fc>0.005?'kpi-pos':fin.fc<-0.005?'kpi-neg':'td-dim';
     const isEdit=ui.editOrderId===order.id;
 
@@ -2447,10 +2551,11 @@ function renderItemTab(itemId) {
 
     if(isEdit){
       html+=`<tr data-oid="${esc(order.id)}">
-        <td class="td-bold">${esc(order.clientName)} ${siBadge} ${floatBadge} ${raffleWinnerBadge}</td>
+        <td class="td-bold">${esc(order.clientName)} ${siBadge} ${floatBadge} ${raffleWinnerBadge} ${discountBadge}</td>
         <td class="td-r"><input id="eq_${esc(order.id)}" class="ci num sm" type="number" value="${esc(order.qtyOrdered)}" min="1"></td>
         <td class="td-c">${allocInner}</td>
-        <td class="td-r"><input id="ep_${esc(order.id)}" class="ci num sm" type="number" value="${esc(order.amountPaid)}" min="0" step="0.01"></td>
+        <td class="td-r"><input id="ep_${esc(order.id)}" class="ci num sm" type="number" value="${esc(order.amountPaid)}" min="0" step="0.01">
+          <input id="epx_${esc(order.id)}" class="ci num sm" style="margin-top:4px;display:block" type="number" value="${order.priceOverride!=null?esc(order.priceOverride):''}" min="0" step="0.01" placeholder="${php(order.storeInventory?item.costPrice:item.srp)} price" title="Custom price/unit for this order — leave blank to use the item's normal price"></td>
         <td class="td-r mono td-dim">${php(fin.srpValueAlloc)}</td>
         <td class="td-r">${refCell}</td>
         <td class="td-r mono ${fcCls}">${php(fin.fc)}</td>
@@ -2458,7 +2563,7 @@ function renderItemTab(itemId) {
       </tr>`;
     } else {
       html+=`<tr data-oid="${esc(order.id)}">
-        <td class="td-bold">${esc(order.clientName)} ${siBadge} ${floatBadge} ${raffleWinnerBadge}</td>
+        <td class="td-bold">${esc(order.clientName)} ${siBadge} ${floatBadge} ${raffleWinnerBadge} ${discountBadge}</td>
         <td class="td-r mono">${esc(order.qtyOrdered)}</td>
         <td class="td-c">${allocInner}</td>
         <td class="td-r mono">${php(order.amountPaid)}</td>
@@ -2500,7 +2605,7 @@ function renderItemTab(itemId) {
   area.innerHTML=html;
 }
 
-function renderAll(){renderDash();renderFloatBreakdown();renderItems();syncOrderForm();renderLedger();renderBasket();syncDistForm();renderDistPOList();renderDistBasket();syncSaleItemSelect();renderStoreSalesPanel();syncRaffleItemSelect();syncRaffleSoundToggle();syncPresentationMode();syncFulfillmentMode();syncSessionPill();renderRaffleArea();syncPanelCollapse();}
+function renderAll(){renderDash();renderFloatBreakdown();renderItems();syncOrderForm();renderLedger();renderBasket();syncDistForm();renderDistPOList();renderDistBasket();syncSaleItemSelect();renderStoreSalesPanel();syncRaffleItemSelect();syncRaffleSoundToggle();syncPresentationMode();syncFulfillmentMode();syncSessionPill();renderRaffleArea();syncPanelCollapse();syncWorkspaceView();}
 
 /* ── ACTIONS: ITEMS ─────────────────────────────── */
 $e('itemForm').addEventListener('submit',function(e){
@@ -2554,22 +2659,32 @@ $e('oStore').addEventListener('change',function(){
   autoFillDP();
 });
 $e('oFundedFloat').addEventListener('change',function(){ $e('fundedFloatLabel').classList.toggle('is-store',this.checked); });
+$e('oPriceOverride').addEventListener('input',autoFillDP);
 $e('oClient').addEventListener('input',function(){ if(ui.basket.length) renderBasket(); });
 
-/* Mirrors autoFillDP's behavior for the inline edit-mode Qty field: as the shop owner
-   corrects an order's quantity, the Amount Paid field recalculates to the 30% DP for the
-   new quantity — same as when adding a new order. Delegated on document since eq_/ep_
-   inputs are freshly created on every render, not present at page-load time. The user can
-   still manually adjust Amount Paid afterward before clicking Save, exactly as in the Add
-   Order form, so a real, already-recorded payment is never silently locked in as "wrong". */
+/* Mirrors autoFillDP's behavior for the inline edit-mode Qty AND Custom Price fields: as the
+   shop owner corrects an order's quantity, or types/clears a one-off discounted price, the
+   Amount Paid field recalculates to the 30% DP for the new quantity/price — same as when
+   adding a new order. Delegated on document since eq_/ep_/epx_ inputs are freshly created on
+   every render, not present at page-load time. The user can still manually adjust Amount Paid
+   afterward before clicking Save, exactly as in the Add Order form, so a real, already-recorded
+   payment is never silently locked in as "wrong". */
 document.addEventListener('input',function(e){
   const id=e.target.id;
-  if(!id||!id.startsWith('eq_')) return;
-  const orderId=id.slice(3);
+  if(!id||(!id.startsWith('eq_')&&!id.startsWith('epx_'))) return;
+  const orderId=id.startsWith('epx_')?id.slice(4):id.slice(3);
   const order=state.orders.find(o=>o.id===orderId); if(!order) return;
   const paidInput=$e('ep_'+orderId); if(!paidInput) return; /* Amount Paid column hidden -- nothing to fill */
-  const qty=parseInt(e.target.value,10)||0;
-  if(qty>0) paidInput.value=requiredDP(order.itemId,qty,order.storeInventory).toFixed(2);
+  const item=getItem(order.itemId);
+  const qtyEl=$e('eq_'+orderId), qty=qtyEl?(parseInt(qtyEl.value,10)||0):(Number(order.qtyOrdered)||0);
+  const priceEl=$e('epx_'+orderId);
+  const overrideVal=priceEl&&priceEl.value!==''?(parseFloat(priceEl.value)||0):null;
+  /* Read the item's base price directly (not via dpPrice(order)) so a just-cleared Custom
+     Price field immediately reverts the DP preview to the normal price, rather than still
+     reflecting the old override that hasn't been saved yet. */
+  const basePrice=item?(order.storeInventory?(Number(item.costPrice)||0):(Number(item.srp)||0)):0;
+  const unitPrice=overrideVal!=null?overrideVal:basePrice;
+  if(qty>0) paidInput.value=(unitPrice*0.30*qty).toFixed(2);
 });
 $e('orderForm').addEventListener('submit',function(e){ e.preventDefault(); addToBasket(); });
 
@@ -2582,7 +2697,7 @@ $e('raffleItemSelect').addEventListener('change',function(){
 
 function saveOrderEdit(id){
   const order=state.orders.find(o=>o.id===id); if(!order) return;
-  const qEl=$e('eq_'+id), pEl=$e('ep_'+id);
+  const qEl=$e('eq_'+id), pEl=$e('ep_'+id), pxEl=$e('epx_'+id);
   if(!qEl && !pEl){ toast('Could not save — Qty and Amount Paid are both hidden. Show at least one column to edit.','err'); return; }
   if(qEl){
     const qty=parseInt(qEl.value,10)||1;
@@ -2591,6 +2706,9 @@ function saveOrderEdit(id){
   }
   if(pEl){
     order.amountPaid=parseFloat(pEl.value)||0;
+  }
+  if(pxEl){
+    order.priceOverride=pxEl.value===''?null:(parseFloat(pxEl.value)||0);
   }
   ui.editOrderId=null;
   renderLedger(); renderDash(); save(); toast('Order updated.','ok');
@@ -2636,12 +2754,13 @@ function addToBasket(){
   const itemId=$e('oItem').value, qty=parseInt($e('oQty').value,10)||0;
   const paid=parseFloat($e('oPaid').value)||0, isStore=$e('oStore').checked;
   const fundedFloat=isStore && $e('oFundedFloat').checked;
+  const priceOverride=formPriceOverride();
   if(!itemId){toast('Select an item first.','err');return;}
   if(qty<=0){toast('Quantity must be at least 1.','err');return;}
   const dupe=ui.basket.find(b=>b.itemId===itemId);
   if(dupe) toast(`Note: "${getItem(itemId)?.name}" already has a line in this basket.`,'ok');
-  ui.basket.push({tempId:uid(),itemId,qty,amountPaid:paid,storeInventory:isStore,fundedByFloat:fundedFloat});
-  $e('oItem').value=''; $e('oQty').value=1; $e('oPaid').value=''; $e('oStore').checked=false; $e('oFundedFloat').checked=false;
+  ui.basket.push({tempId:uid(),itemId,qty,amountPaid:paid,storeInventory:isStore,fundedByFloat:fundedFloat,priceOverride});
+  $e('oItem').value=''; $e('oQty').value=1; $e('oPaid').value=''; $e('oStore').checked=false; $e('oFundedFloat').checked=false; $e('oPriceOverride').value='';
   $e('storeCheckLabel').classList.remove('is-store'); $e('fundedFloatWrap').style.display='none'; $e('fundedFloatLabel').classList.remove('is-store');
   updateOrderHint(); renderBasket();
   $e('oItem').focus(); toast(`Item added to basket (${ui.basket.length} total).`,'ok');
@@ -2651,7 +2770,7 @@ function confirmBasket(){
   const client=$e('oClient').value.trim();
   if(!client){toast('Enter a client name before confirming.','err');$e('oClient').focus();return;}
   const ts=Date.now();
-  ui.basket.forEach((b,i)=>{ state.orders.push({id:uid(),clientName:client,itemId:b.itemId,qtyOrdered:b.qty,amountPaid:b.amountPaid,storeInventory:b.storeInventory,fundedByFloat:!!b.fundedByFloat,manualOverride:false,overriddenQty:0,raffleWinner:false,prepared:false,shipped:false,shippedAt:null,fulfillmentNote:'',createdAt:ts+i}); });
+  ui.basket.forEach((b,i)=>{ state.orders.push({id:uid(),clientName:client,itemId:b.itemId,qtyOrdered:b.qty,amountPaid:b.amountPaid,storeInventory:b.storeInventory,fundedByFloat:!!b.fundedByFloat,priceOverride:b.priceOverride??null,manualOverride:false,overriddenQty:0,raffleWinner:false,prepared:false,shipped:false,shippedAt:null,fulfillmentNote:'',createdAt:ts+i}); });
   const count=ui.basket.length; ui.basket=[]; $e('oClient').value=''; ui.activeTab='clients';
   renderAll(); save(); toast(`${count} order${count===1?'':'s'} committed for "${client}".`,'ok');
 }
@@ -2665,18 +2784,21 @@ function renderBasket(){
   const area=$e('basketArea');
   if(!ui.basket.length){area.innerHTML='';return;}
   const clientName=$e('oClient').value.trim();
-  const cd=clientName?`<em>${esc(clientName)}</em>`:`<span style="color:var(--text-f);font-style:italic">enter client name above</span>`;
+  const cd=clientName?`<em>${esc(clientName)}</em>`:`<span style="color:var(--text-d);font-style:italic">enter client name above</span>`;
   const totalDP=ui.basket.reduce((s,b)=>s+b.amountPaid,0), totalQty=ui.basket.reduce((s,b)=>s+b.qty,0);
   let rows='';
   ui.basket.forEach((b,idx)=>{
     const item=getItem(b.itemId), siBadge=b.storeInventory?`<span class="si-badge">Store</span>`:'';
-    const floatBadge=b.fundedByFloat?`<span class="si-badge" style="background:var(--gold-s);color:var(--gold);border-color:rgba(244,197,83,0.25)">💰 Float</span>`:'';
+    const floatBadge=b.fundedByFloat?`<span class="float-badge">💰 Float</span>`:'';
+    const discountBadge=(b.priceOverride!=null)?`<span class="discount-badge" title="Custom price for this order">💲 ${php(b.priceOverride)}/unit</span>`:'';
+    const basePrice=item?(b.storeInventory?Number(item.costPrice):Number(item.srp)):0;
+    const dpRate=(b.priceOverride!=null?Number(b.priceOverride):basePrice)*0.30;
     const ac=idx===ui.basket.length-1?'class="basket-row-enter"':'';
     rows+=`<tr ${ac}>
-      <td class="td-bold">${item?esc(item.name):'<em style="color:var(--red)">item deleted</em>'} ${siBadge} ${floatBadge}</td>
+      <td class="td-bold">${item?esc(item.name):'<em style="color:var(--red)">item deleted</em>'} ${siBadge} ${floatBadge} ${discountBadge}</td>
       <td class="td-r mono">${b.qty}</td>
       <td class="td-r mono">${php(b.amountPaid)}</td>
-      <td class="td-r td-dim" style="font-size:12px">${item?php((b.storeInventory?Number(item.costPrice):Number(item.srp))*0.30)+'/unit':'—'}</td>
+      <td class="td-r td-dim" style="font-size:12px">${item?php(dpRate)+'/unit':'—'}</td>
       <td class="td-r"><button type="button" class="icon-btn del" data-a="rm-basket" data-tid="${esc(b.tempId)}" title="Remove">✕</button></td>
     </tr>`;
   });
@@ -2733,7 +2855,7 @@ function renderDistBasket(){
   const area=$e('distBasketArea');
   if(!ui.distBasket.length){area.innerHTML='';return;}
   const poName=$e('pPoNumber').value.trim();
-  const pd=poName?`<em>${esc(poName)}</em>`:`<span style="color:var(--text-f);font-style:italic">enter PO / order number above</span>`;
+  const pd=poName?`<em>${esc(poName)}</em>`:`<span style="color:var(--text-d);font-style:italic">enter PO / order number above</span>`;
   const totalQty=ui.distBasket.reduce((s,b)=>s+b.qty,0);
   let rows='';
   ui.distBasket.forEach((b,idx)=>{
@@ -2831,7 +2953,8 @@ function buildClientMessageText(name) {
   const announcedWinItems=new Set();
   orders.forEach(order=>{
     const item=getItem(order.itemId), fin=orderFin(order);
-    lines.push(`- ${item.name}: Ordered ${order.qtyOrdered}, Allocated ${fin.aq} (${php(item.srp)} each)`);
+    const eachPrice=order.priceOverride!=null?Number(order.priceOverride):(Number(item.srp)||0);
+    lines.push(`- ${item.name}: Ordered ${order.qtyOrdered}, Allocated ${fin.aq} (${php(eachPrice)} each)`);
     /* Same item-level winner check used for the ledger badge — a client's win is
        tied to the item, not to whichever specific order happened to receive the
        ledger bump, so this is deduped per item in case they have more than one
@@ -3214,12 +3337,14 @@ document.addEventListener('click',function(e){
     case 'toggle-presentation':
       ui.presentationMode=!ui.presentationMode;
       if(ui.presentationMode && ui.fulfillmentMode){ ui.fulfillmentMode=false; syncFulfillmentMode(); }  /* the two hide overlapping panels — mutually exclusive */
+      if(ui.presentationMode && ui.workspaceView!=='all'){ ui.workspaceView='all'; try{localStorage.setItem(WORKSPACE_VIEW_KEY,'all');}catch(e){} syncWorkspaceView(); }  /* presentation mode has its own panel-hiding rules — don't let a focused tab fight them */
       save(); syncPresentationMode();
       if(ui.presentationMode) window.scrollTo({top:0,behavior:'smooth'});
       break;
     case 'toggle-fulfillment-mode': toggleFulfillmentMode(); break;
     case 'toggle-panel-collapse': togglePanelCollapse(btn.dataset.panel); break;
     case 'toggle-collapse-all': toggleCollapseAll(); break;
+    case 'set-workspace-view': setWorkspaceView(btn.dataset.panel); break;
     case 'toggle-session-panel':
       ui.showSessionPanel=!ui.showSessionPanel;
       if(ui.showSessionPanel) ui.sessionSearchQuery='';
@@ -3337,7 +3462,7 @@ function buildReceiptHTML(clientName, orders) {
   orders.forEach(order => {
     const item = getItem(order.itemId);
     if (!item) return;   /* deleted items are silently omitted from the customer-facing receipt */
-    const srp = Number(item.srp) || 0;
+    const srp = order.priceOverride!=null ? Number(order.priceOverride) : (Number(item.srp) || 0);
     const qty = Number(order.qtyOrdered) || 0;
     const lineTotal = qty * srp;
     totalSrpValue += lineTotal;
@@ -3517,6 +3642,7 @@ async function generateAllReceipts() {
 const SK='tcgPreOrderV5';                       /* legacy single-session key, read once for migration only */
 const LIB_KEY='tcgPreOrderSessions_v1';
 const ACTIVE_KEY='tcgPreOrderActiveSession_v1';
+const WORKSPACE_VIEW_KEY='tcgWorkspaceView_v1';   /* which section-nav tab is focused — a browsing preference, not session data, so it's stored outside the session library and survives switching between sessions */
 const sessionDataKey=id=>'tcgPreOrderSessData_v1_'+id;
 
 function getLibrary(){ try{ const l=JSON.parse(localStorage.getItem(LIB_KEY)||'[]'); return Array.isArray(l)?l:[]; }catch(e){ return []; } }
@@ -3806,7 +3932,9 @@ function toastUndo(msg,cb){ _undoCb=cb; const t=$e('toast'); t.innerHTML=`<span>
 /* ── INIT ───────────────────────────────────────── */
 ui.activeSessionId=ensureActiveSession();
 loadActiveSession();
+ui.workspaceView=loadWorkspaceView();
 renderAll();
+updateSectionNavActive();
 })();
 </script>
 </body>
