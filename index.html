@@ -1640,12 +1640,13 @@ function renderDistCrossCheck() {
   if(!state.items.length){ area.innerHTML=''; return; }
   const rows=state.items.map(item=>{
     const needed=itemOrderedBreakdown(item.id).totalQty, placed=distributorPlacedQty(item.id), diff=needed-placed;
+    const dpUnit=(Number(item.costPrice)||0)*0.30, dpPlaced=dpUnit*placed;
     let statusHtml;
     if(needed===0 && placed===0) statusHtml=`<span class="td-dim">—</span>`;
     else if(diff===0) statusHtml=`<span class="pill pill-ref">✓ Matched</span>`;
     else if(diff>0) statusHtml=`<span class="pill pill-bal">Short ${diff}</span>`;
     else statusHtml=`<span class="pill pill-ok">Over by ${Math.abs(diff)}</span>`;
-    return {name:item.name,eta:item.eta,needed,placed,diff,statusHtml};
+    return {name:item.name,eta:item.eta,needed,placed,diff,dpUnit,dpPlaced,statusHtml};
   }).sort((a,b)=>b.diff-a.diff || a.name.localeCompare(b.name));   /* biggest shortfall first */
 
   let trs=rows.map(r=>`<tr>
@@ -1653,11 +1654,13 @@ function renderDistCrossCheck() {
     <td class="td-dim">${esc(r.eta||'—')}</td>
     <td class="td-r mono">${r.needed}</td>
     <td class="td-r mono">${r.placed}</td>
+    <td class="td-r mono">${php(r.dpUnit)}</td>
+    <td class="td-r mono">${php(r.dpPlaced)}</td>
     <td class="td-r">${r.statusHtml}</td>
   </tr>`).join('');
 
   area.innerHTML=`<div class="tbl-wrap"><table class="dist-check-tbl">
-    <thead><tr><th>Item / SKU</th><th>ETA</th><th class="r" title="Total client + store orders for this SKU">Needed</th><th class="r" title="Total qty logged across all distributor POs below">Placed</th><th class="r">Status</th></tr></thead>
+    <thead><tr><th>Item / SKU</th><th>ETA</th><th class="r" title="Total client + store orders for this SKU">Needed</th><th class="r" title="Total qty logged across all distributor POs below">Placed</th><th class="r" title="30% cost-basis downpayment owed to the distributor per unit">Dist. DP/Unit</th><th class="r" title="Dist. DP/Unit × Placed — total money remitted to the distributor for this SKU so far">DP Sent (Placed)</th><th class="r">Status</th></tr></thead>
     <tbody>${trs}</tbody></table></div>
     <div class="dist-check-empty-hint">Sorted by biggest shortfall first — log a PO below whenever you order from the distributor.</div>`;
 }
@@ -1672,6 +1675,8 @@ function renderDistPOList() {
   let tbody='';
   pos.forEach(po=>{
     const lines=linesForPO(po), totalQty=lines.reduce((s,l)=>s+(Number(l.qty)||0),0);
+    const lineDP=lines.map(l=>{ const item=getItem(l.itemId); const dpUnit=item?(Number(item.costPrice)||0)*0.30:0; return dpUnit*(Number(l.qty)||0); });
+    const totalDP=lineDP.reduce((s,v)=>s+v,0);
     const collapsed=ui.collapsedPOs.has(po), chevron=collapsed?'▶':'▼';
     tbody+=`<div class="c-head${collapsed?' collapsed':''}" style="border-radius:var(--r-s);margin-bottom:${collapsed?'6':'0'}px;overflow:hidden">
       <div style="padding:10px 13px;background:var(--surf-2);border-top:2px solid var(--accent);${collapsed?'border-top-color:var(--surf-3);opacity:0.85;':''}">
@@ -1679,7 +1684,7 @@ function renderDistPOList() {
           <span class="c-name">
             <button type="button" class="collapse-btn" data-a="toggle-po-collapse" data-po="${esc(po)}" title="${collapsed?'Expand':'Collapse'}">${chevron}</button>
             📦 ${esc(po)} <span class="badge">${lines.length} line${lines.length===1?'':'s'}</span>
-            <span class="po-total-chip">${totalQty} unit${totalQty===1?'':'s'} total · placed ${timeAgo(new Date(lines[0].createdAt).toISOString())}</span>
+            <span class="po-total-chip">${totalQty} unit${totalQty===1?'':'s'} total · ${php(totalDP)} DP total · placed ${timeAgo(new Date(lines[0].createdAt).toISOString())}</span>
           </span>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button type="button" class="btn btn-ghost" data-a="del-dist-po" data-po="${esc(po)}" style="font-size:12px;padding:5px 11px">✕ Delete PO</button>
@@ -1687,15 +1692,20 @@ function renderDistPOList() {
         </div>
       </div>
       ${collapsed?'':`<div class="tbl-wrap" style="margin-top:0;border-radius:0;border-left:none;border-right:none;border-top:none">
-        <table class="dist-check-tbl"><thead><tr><th>Item / SKU</th><th class="r">Qty</th><th></th></tr></thead>
-        <tbody>${lines.map(l=>{
+        <table class="dist-check-tbl"><thead><tr><th>Item / SKU</th><th class="r">Qty</th><th class="r" title="30% cost-basis downpayment owed to the distributor per unit">DP/Unit</th><th class="r" title="DP/Unit × Qty for this line">DP Cost</th><th></th></tr></thead>
+        <tbody>${lines.map((l,i)=>{
           const item=getItem(l.itemId);
+          const dpUnit=item?(Number(item.costPrice)||0)*0.30:0;
           return `<tr>
             <td class="td-bold">${item?esc(item.name):'<em style="color:var(--red)">item deleted</em>'}</td>
             <td class="td-r mono">${l.qty}</td>
+            <td class="td-r mono">${item?php(dpUnit):'<span class="td-dim">—</span>'}</td>
+            <td class="td-r mono">${item?php(lineDP[i]):'<span class="td-dim">—</span>'}</td>
             <td class="td-r"><button type="button" class="icon-btn del" data-a="del-dist-line" data-id="${esc(l.id)}" title="Remove line">✕</button></td>
           </tr>`;
-        }).join('')}</tbody></table>
+        }).join('')}
+        <tr style="border-top:1px solid var(--surf-3)"><td class="td-bold">Total</td><td class="td-r mono">${totalQty}</td><td></td><td class="td-r mono td-bold">${php(totalDP)}</td><td></td></tr>
+        </tbody></table>
       </div>`}
     </div>`;
   });
