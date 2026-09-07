@@ -1640,28 +1640,41 @@ function renderDistCrossCheck() {
   if(!state.items.length){ area.innerHTML=''; return; }
   const rows=state.items.map(item=>{
     const needed=itemOrderedBreakdown(item.id).totalQty, placed=distributorPlacedQty(item.id), diff=needed-placed;
-    const dpUnit=(Number(item.costPrice)||0)*0.30, dpPlaced=dpUnit*placed;
+    const dpUnit=(Number(item.costPrice)||0)*0.30, dpPlaced=dpUnit*placed, dpLacking=diff>0?diff*dpUnit:0;
     let statusHtml;
     if(needed===0 && placed===0) statusHtml=`<span class="td-dim">—</span>`;
     else if(diff===0) statusHtml=`<span class="pill pill-ref">✓ Matched</span>`;
     else if(diff>0) statusHtml=`<span class="pill pill-bal">Short ${diff}</span>`;
     else statusHtml=`<span class="pill pill-ok">Over by ${Math.abs(diff)}</span>`;
-    return {name:item.name,eta:item.eta,needed,placed,diff,dpUnit,dpPlaced,statusHtml};
+    return {name:item.name,needed,placed,diff,dpUnit,dpPlaced,dpLacking,statusHtml};
   }).sort((a,b)=>b.diff-a.diff || a.name.localeCompare(b.name));   /* biggest shortfall first */
+
+  const totalPlaced=rows.reduce((s,r)=>s+r.placed,0), totalNeeded=rows.reduce((s,r)=>s+r.needed,0);
+  const totalDpPlaced=rows.reduce((s,r)=>s+r.dpPlaced,0), totalDpLacking=rows.reduce((s,r)=>s+r.dpLacking,0);
 
   let trs=rows.map(r=>`<tr>
     <td class="td-bold">${esc(r.name)}</td>
-    <td class="td-dim">${esc(r.eta||'—')}</td>
     <td class="td-r mono">${r.needed}</td>
     <td class="td-r mono">${r.placed}</td>
     <td class="td-r mono">${php(r.dpUnit)}</td>
     <td class="td-r mono">${php(r.dpPlaced)}</td>
+    <td class="td-r mono">${r.dpLacking>0?php(r.dpLacking):'<span class="td-dim">—</span>'}</td>
     <td class="td-r">${r.statusHtml}</td>
   </tr>`).join('');
 
+  const totalRow=`<tr style="border-top:1px solid var(--surf-3)">
+    <td class="td-bold">Total</td>
+    <td class="td-r mono td-bold">${totalNeeded}</td>
+    <td class="td-r mono td-bold">${totalPlaced}</td>
+    <td></td>
+    <td class="td-r mono td-bold">${php(totalDpPlaced)}</td>
+    <td class="td-r mono td-bold">${php(totalDpLacking)}</td>
+    <td></td>
+  </tr>`;
+
   area.innerHTML=`<div class="tbl-wrap"><table class="dist-check-tbl">
-    <thead><tr><th>Item / SKU</th><th>ETA</th><th class="r" title="Total client + store orders for this SKU">Needed</th><th class="r" title="Total qty logged across all distributor POs below">Placed</th><th class="r" title="30% cost-basis downpayment owed to the distributor per unit">Dist. DP/Unit</th><th class="r" title="Dist. DP/Unit × Placed — total money remitted to the distributor for this SKU so far">DP Sent (Placed)</th><th class="r">Status</th></tr></thead>
-    <tbody>${trs}</tbody></table></div>
+    <thead><tr><th>Item / SKU</th><th class="r" title="Total client + store orders for this SKU">Needed</th><th class="r" title="Total qty logged across all distributor POs below">Placed</th><th class="r" title="30% cost-basis downpayment owed to the distributor per unit">Dist. DP/Unit</th><th class="r" title="Dist. DP/Unit × Placed — total money remitted to the distributor for this SKU so far">DP Sent (Placed)</th><th class="r" title="Dist. DP/Unit × the shortfall — additional money you'd need to send to close the gap">DP Still Needed</th><th class="r">Status</th></tr></thead>
+    <tbody>${trs}${totalRow}</tbody></table></div>
     <div class="dist-check-empty-hint">Sorted by biggest shortfall first — log a PO below whenever you order from the distributor.</div>`;
 }
 function renderDistPOList() {
