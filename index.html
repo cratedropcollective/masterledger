@@ -779,8 +779,15 @@ function itemOrdersSorted(itemId) {
    below). Deliberately reuses state.orders (prepared/shipped/shippedAt/
    fulfillmentNote fields added to each order) rather than a separate list,
    so it can never drift out of sync with the allocation ledger it reads. */
+function isFulfillmentEligible(o) {
+  /* Client order (not a store restock) AND actually has units to hand
+     over — from its natural allocation% share or a raffle-bump manual
+     override. An order that missed the cut entirely has nothing to
+     prep/ship, so it shouldn't clutter the Fulfillment tab. */
+  return !o.storeInventory && allocQty(o)>0;
+}
 function fulfillmentEligibleOrders() {
-  return state.orders.filter(o=>!o.storeInventory);
+  return state.orders.filter(isFulfillmentEligible);
 }
 function fulfillmentSummary() {
   const orders=fulfillmentEligibleOrders();
@@ -816,9 +823,9 @@ function setClientLBCField(name,field,value) {
    FULL unfiltered order set — so a status filter narrowing which rows are visible
    never makes a client's shipped/total progress pill or LBC highlight look wrong. */
 function fulfillmentGroupedByClient() {
-  const names=clientNames().filter(name=>ordersForClient(name).some(o=>!o.storeInventory));
+  const names=clientNames().filter(name=>ordersForClient(name).some(isFulfillmentEligible));
   const groups=names.map(name=>{
-    const allOrders=ordersForClient(name).filter(o=>!o.storeInventory);
+    const allOrders=ordersForClient(name).filter(isFulfillmentEligible);
     let orders=allOrders;
     if(ui.fulfillmentItemFilter!=='all') orders=orders.filter(o=>o.itemId===ui.fulfillmentItemFilter);
     if(ui.fulfillmentStatusFilter==='pending') orders=orders.filter(o=>!o.prepared);
