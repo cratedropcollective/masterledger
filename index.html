@@ -3463,18 +3463,19 @@ async function exportClientReport(){
 
     /* ───────── SHEET 1: CLIENT SUMMARY ───────── */
     const ws1=wb.addWorksheet('Client Summary',{views:[{state:'frozen',ySplit:6,showGridLines:false}],properties:{tabColor:{argb:C.head}}});
-    ws1.columns=[{width:26},{width:38},{width:11},{width:14},{width:17},{width:14},{width:19},{width:22}];
-    titleBlock(ws1,'Pre-Order Client Summary','H');
+    ws1.columns=[{width:26},{width:38},{width:11},{width:14},{width:17},{width:14},{width:19},{width:22},{width:14},{width:18}];
+    titleBlock(ws1,'Pre-Order Client Summary','J');
     ws1.getRow(3).height=16; ws1.getRow(4).height=26; ws1.getRow(5).height=8;
-    header(ws1,6,['Client','Ordered Item','Order Qty','Actual Allocated Qty','Pre-Order DP','Unit Price','Allocated Qty Price','Balance / Refund']);
+    header(ws1,6,['Client','Ordered Item','Order Qty','Actual Allocated Qty','Pre-Order DP','Unit Price','Allocated Qty Price','Balance / Refund','Unit Cost','Profit']);
 
     let r=7; const subRows=[]; let gi=0;
     const firstDataRow=r;
-    let totRefund=0,totBal=0;
+    let totRefund=0,totBal=0,totProfit=0;
     clients.forEach(cl=>{
-      const band=(gi%2===1); const start=r; let sumQty=0,sumAlloc=0,sumDP=0,sumPrice=0;
+      const band=(gi%2===1); const start=r; let sumQty=0,sumAlloc=0,sumDP=0,sumPrice=0,sumProfit=0;
       cl.orders.forEach((o,idx)=>{
         const aq=allocQty(o), unit=dpPrice(o), price=round2(aq*unit), dp=round2(Number(o.amountPaid)||0), bal=round2(dp-price);
+        const costU=Number(getItem(o.itemId).costPrice)||0, profit=round2(price-aq*costU);
         const row=ws1.getRow(r); const item=getItem(o.itemId);
         row.getCell(1).value=idx===0?cl.name:null;
         row.getCell(2).value=item.name;
@@ -3484,18 +3485,21 @@ async function exportClientReport(){
         row.getCell(6).value=unit;
         row.getCell(7).value={formula:`D${r}*F${r}`,result:price};
         row.getCell(8).value={formula:`ROUND(E${r}-G${r},2)`,result:bal};
-        for(let c=1;c<=8;c++){
+        row.getCell(9).value=costU;
+        row.getCell(10).value={formula:`ROUND(G${r}-D${r}*I${r},2)`,result:profit};
+        for(let c=1;c<=10;c++){
           const cell=row.getCell(c); cell.font=Object.assign({},baseFont);
           if(band) cell.fill=fill(C.band);
           cell.border={left:thin,right:thin,bottom:thin,top:idx===0?{style:'medium',color:{argb:C.head}}:thin};
           cell.alignment={vertical:'middle',wrapText:c===2,horizontal:(c===3||c===4)?'center':(c>=5?'right':'left')};
         }
         row.getCell(1).font={name:'Calibri',size:11,bold:true,color:{argb:C.ink}};
-        [5,6,7].forEach(c=>row.getCell(c).numFmt=PESO); row.getCell(8).numFmt=BAL;
+        [5,6,7,9,10].forEach(c=>row.getCell(c).numFmt=PESO); row.getCell(8).numFmt=BAL;
+        row.getCell(9).font={name:'Calibri',size:11,color:{argb:C.grey}};
         if(aq===0) row.getCell(4).font={name:'Calibri',size:11,bold:true,color:{argb:C.red}};
         else if(aq<(Number(o.qtyOrdered)||0)) row.getCell(4).font={name:'Calibri',size:11,bold:true,color:{argb:C.gold}};
         row.height=20;
-        sumQty+=Number(o.qtyOrdered)||0; sumAlloc+=aq; sumDP+=dp; sumPrice+=price; r++;
+        sumQty+=Number(o.qtyOrdered)||0; sumAlloc+=aq; sumDP+=dp; sumPrice+=price; sumProfit+=profit; r++;
       });
       const end=r-1, net=round2(sumDP-sumPrice);
       const sr=ws1.getRow(r);
@@ -3505,12 +3509,14 @@ async function exportClientReport(){
       sr.getCell(5).value={formula:`SUBTOTAL(9,E${start}:E${end})`,result:round2(sumDP)};
       sr.getCell(7).value={formula:`SUBTOTAL(9,G${start}:G${end})`,result:round2(sumPrice)};
       sr.getCell(8).value={formula:`SUBTOTAL(9,H${start}:H${end})`,result:net};
-      for(let c=1;c<=8;c++){
+      sr.getCell(10).value={formula:`SUBTOTAL(9,J${start}:J${end})`,result:round2(sumProfit)};
+      totProfit+=sumProfit;
+      for(let c=1;c<=10;c++){
         const cell=sr.getCell(c); cell.font={name:'Calibri',size:11,bold:true,color:{argb:C.ink}}; cell.fill=fill(C.sub);
         cell.border={top:thin,bottom:{style:'thin',color:{argb:C.head}},left:thin,right:thin};
         cell.alignment={vertical:'middle',horizontal:(c===3||c===4)?'center':(c>=5?'right':'left')};
       }
-      [5,7].forEach(c=>sr.getCell(c).numFmt=PESO); sr.getCell(8).numFmt=BAL; sr.height=22;
+      [5,7,10].forEach(c=>sr.getCell(c).numFmt=PESO); sr.getCell(8).numFmt=BAL; sr.height=22;
       subRows.push(r); if(net>0) totRefund+=net; else if(net<0) totBal+=-net;
       r++; gi++;
       ws1.getRow(r).height=8; r++;   /* thin spacer between clients */
@@ -3523,16 +3529,16 @@ async function exportClientReport(){
       const sumAll=(col,res)=>({formula:`SUBTOTAL(9,${col}${firstDataRow}:${col}${lastData})`,result:res});
       gr.getCell(1).value='GRAND TOTAL';
       gr.getCell(3).value=sumAll('C',q); gr.getCell(4).value=sumAll('D',a); gr.getCell(5).value=sumAll('E',round2(d));
-      gr.getCell(7).value=sumAll('G',round2(pr)); gr.getCell(8).value=sumAll('H',round2(d-pr)); }
-    for(let c=1;c<=8;c++){
+      gr.getCell(7).value=sumAll('G',round2(pr)); gr.getCell(8).value=sumAll('H',round2(d-pr)); gr.getCell(10).value=sumAll('J',round2(totProfit)); }
+    for(let c=1;c<=10;c++){
       const cell=gr.getCell(c); cell.font={name:'Calibri',size:12,bold:true,color:{argb:C.headTxt}}; cell.fill=fill(C.head);
       cell.alignment={vertical:'middle',horizontal:(c===3||c===4)?'center':(c>=5?'right':'left')};
     }
-    [5,7].forEach(c=>gr.getCell(c).numFmt=PESO); gr.getCell(8).numFmt=BAL; gr.height=26;
+    [5,7,10].forEach(c=>gr.getCell(c).numFmt=PESO); gr.getCell(8).numFmt=BAL; gr.height=26;
     ws1.getRow(r+1).height=8;
-    ws1.mergeCells(`A${r+2}:H${r+2}`);
-    const legend=ws1.getCell(`A${r+2}`); legend.value='Balance / Refund = Pre-Order DP − Allocated Qty Price.   Green “Refund” = money to send back to the client · Red “Balance” = amount the client still owes · Allocated Qty in gold = fewer than ordered, red = nothing allocated.';
-    legend.font={name:'Calibri',size:9.5,italic:true,color:{argb:C.grey}}; legend.alignment={wrapText:true,vertical:'top'}; ws1.getRow(r+2).height=28;
+    ws1.mergeCells(`A${r+2}:J${r+2}`);
+    const legend=ws1.getCell(`A${r+2}`); legend.value='Profit = Allocated Qty Price − (Allocated Qty × Unit Cost) — your margin on the units actually allocated (internal: don’t share this sheet with clients).   Balance / Refund = Pre-Order DP − Allocated Qty Price.   Green “Refund” = money to send back to the client · Red “Balance” = amount the client still owes · Allocated Qty in gold = fewer than ordered, red = nothing allocated.';
+    legend.font={name:'Calibri',size:9.5,italic:true,color:{argb:C.grey}}; legend.alignment={wrapText:true,vertical:'top'}; ws1.getRow(r+2).height=42;
 
     /* KPI strip (gross refunds / gross balances — summed from the client subtotals, so they stay live) */
     const refundF=subRows.map(x=>`MAX(0,H${x})`).join('+'), balF=subRows.map(x=>`MAX(0,-H${x})`).join('+');
@@ -3540,11 +3546,17 @@ async function exportClientReport(){
     kpi(ws1,'B3','B4','REFUNDS TO RELEASE',{formula:refundF,result:round2(totRefund)},C.green,PESO);
     ws1.mergeCells('E3:G3'); ws1.mergeCells('E4:G4');
     kpi(ws1,'E3','E4','BALANCES TO COLLECT',{formula:balF,result:round2(totBal)},C.red,PESO);
+    ws1.mergeCells('I3:J3'); ws1.mergeCells('I4:J4');
+    kpi(ws1,'I3','I4','TOTAL PROFIT',{formula:`J${r}`,result:round2(totProfit)},totProfit<0?C.red:C.green,PESO);
 
     const cfFont=(color,bg)=>({font:{color:{argb:color},bold:true},fill:{type:'pattern',pattern:'solid',bgColor:{argb:bg}}});
     ws1.addConditionalFormatting({ref:`H${firstDataRow}:H${lastData}`,rules:[
       {type:'cellIs',operator:'greaterThan',formulae:[0],priority:1,style:cfFont(C.green,C.greenBg)},
       {type:'cellIs',operator:'lessThan',formulae:[0],priority:2,style:cfFont(C.red,C.redBg)},
+    ]});
+    ws1.addConditionalFormatting({ref:`J${firstDataRow}:J${lastData}`,rules:[
+      {type:'cellIs',operator:'greaterThan',formulae:[0],priority:3,style:{font:{color:{argb:C.green},bold:true}}},
+      {type:'cellIs',operator:'lessThan',formulae:[0],priority:4,style:cfFont(C.red,C.redBg)},
     ]});
     ws1.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'6:6',margins:{left:0.4,right:0.4,top:0.5,bottom:0.5,header:0.3,footer:0.3}};
 
