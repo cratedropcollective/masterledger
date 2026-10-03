@@ -303,6 +303,23 @@ tbody tr:hover td { background:rgba(124,111,247,0.05); }
 .brk-profit-tag.confirmed { background:var(--green-s); color:var(--green); border:1px solid rgba(79,209,160,0.25); }
 .brk-profit-tag.estimated { background:var(--gold-s); color:var(--gold); border:1px solid rgba(244,197,83,0.25); }
 
+
+/* ── LEDGER STATUS (Delayed / Served) ─────────────── */
+.status-sel { background:var(--surf-2); border:1px solid var(--border); color:var(--text); border-radius:var(--r-xs); padding:5px 8px; font-size:12px; font-family:var(--fb); cursor:pointer; }
+.status-sel.st-delayed { border-color:rgba(242,153,74,0.5); color:var(--amber); background:var(--amber-s); }
+.status-sel.st-served  { border-color:rgba(79,209,160,0.4); color:var(--green); background:var(--green-s); }
+.st-badge { display:inline-flex; align-items:center; font-size:9.5px; font-weight:700; font-family:var(--fm); padding:1px 7px; border-radius:20px; text-transform:uppercase; letter-spacing:0.04em; margin-left:6px; vertical-align:middle; }
+.st-badge.delayed { background:var(--amber-s); color:var(--amber); border:1px solid rgba(242,153,74,0.3); }
+.st-badge.served  { background:var(--green-s); color:var(--green); border:1px solid rgba(79,209,160,0.25); }
+.row-excluded td { opacity:0.5; background:repeating-linear-gradient(135deg,transparent 0 8px,rgba(255,255,255,0.02) 8px 16px); }
+.brk-card-dim { opacity:0.6; }
+.lt-chip { font-size:11.5px; color:var(--text-d); font-family:var(--fm); padding:0 4px; white-space:nowrap; }
+.status-banner { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-top:12px; padding:10px 14px; border-radius:var(--r-s); font-size:12.5px; line-height:1.5; }
+.status-banner.delayed { background:var(--amber-s); border:1px solid rgba(242,153,74,0.35); color:var(--amber); }
+.status-banner.served  { background:var(--green-s); border:1px solid rgba(79,209,160,0.3); color:var(--green); }
+.status-cell-actions { margin-top:5px; }
+.status-cell-actions .lt-btn { font-size:10.5px; padding:3px 8px; }
+
 /* ── PILLS ────────────────────────────────────────── */
 .pill { display:inline-flex; align-items:center; padding:3px 9px; border-radius:20px; font-size:11.5px; font-weight:600; font-family:var(--fm); white-space:nowrap; }
 .pill-ref { background:var(--green-s); color:var(--green); border:1px solid rgba(79,209,160,0.2); }
@@ -639,6 +656,7 @@ body.fulfillment-mode #orderLedgerPanel #tabNav { display:none !important; }
 <div class="toast" id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 (function(){
 'use strict';
@@ -689,6 +707,7 @@ let ui = {
   showSessionPanel: false,
   sessionSearchQuery: '',     /* filter text typed into the session switcher's search box (only shown once there are several sessions) */
   sessionSortMode: 'recent',  /* 'recent' (last updated first, default) or 'alpha' (A–Z by name) — toggled in the session switcher */
+  showHiddenItems: false,     /* true = Client Overview also lists orders of Delayed/Served items (dimmed, not counted in totals) */
   workspaceView: 'all'        /* 'all' (default full scrolling view) or one of PANEL_KEYS to show only that section as a focused single-panel view */
 };
 
@@ -707,6 +726,29 @@ function round2(n) { return Math.round((Number(n)||0)*100)/100; }   /* rounds to
 
 /* ── CALCULATIONS ───────────────────────────────── */
 function getItem(id) { return state.items.find(i=>i.id===id); }
+
+/* ── LEDGER SCOPE: Active / Delayed / Served ───────────────────────────
+   Each item has a ledgerStatus. Only 'active' items are "in scope" for the
+   client-facing breakdown (Client Overview totals, Refunds, Fulfillment,
+   Copy Update, receipts, Client Report export, settlement totals).
+     • delayed — the item hasn't arrived yet. Its orders (and the DP paid on
+       them) are set aside so every client's refund/balance reflects ONLY
+       the items whose allocation is actually known.
+     • served  — the item was already handled in an earlier round. Marking
+       it served, once a delayed item finally arrives, leaves the breakdown
+       showing just the delayed item.
+   Nothing is deleted or altered on the orders themselves, and the
+   Floating Capital cash figures stay on the real cash picture (DP actually
+   collected / sent) — only the client breakdown is scoped. */
+function itemStatus(itemOrId) {
+  const it=(typeof itemOrId==='string')?getItem(itemOrId):itemOrId;
+  return (it && it.ledgerStatus) || 'active';
+}
+function isOrderInScope(o) { const it=getItem(o.itemId); return !it || itemStatus(it)==='active'; }
+/* Identifies WHICH items are currently set aside. Refund records are filed under this
+   (see getClientRefundData) so a refund marked "Refunded" in round 1 doesn't carry over
+   as already-paid into round 2, when the same client is owed a different amount. */
+function scopeKey() { return state.items.filter(i=>itemStatus(i)!=='active').map(i=>i.id).sort().join(','); }
 
 function allocQty(order) {
   if (order.manualOverride) return Math.max(0,Math.floor(Number(order.overriddenQty)||0));
@@ -741,15 +783,17 @@ function orderFin(order) {
   const fc=orderFC(order);
   return {aq,valueAlloc,srpValueAlloc,paid,diff,fc,isRefund:diff>=0,isZero:Math.abs(diff)<0.005};
 }
-function clientNames() {
-  const names=[...new Set(state.orders.map(o=>o.clientName))];
+function clientNames(includeHidden) {
+  const pool=includeHidden?state.orders:state.orders.filter(isOrderInScope);
+  const names=[...new Set(pool.map(o=>o.clientName))];
   if(ui.sortClients==='alpha') return names.sort((a,b)=>a.localeCompare(b));
-  const first={}; state.orders.forEach(o=>{ if(!first[o.clientName]) first[o.clientName]=o.createdAt; });
+  const first={}; pool.forEach(o=>{ if(!first[o.clientName]) first[o.clientName]=o.createdAt; });
   return names.sort((a,b)=>first[a]-first[b]);
 }
-function ordersForClient(name) { return state.orders.filter(o=>o.clientName===name).sort((a,b)=>a.createdAt-b.createdAt); }
-function clientSummary(name) {
-  const orders=ordersForClient(name); let paid=0,val=0,fc=0,qtyOrd=0,qtyAlloc=0,srpVal=0;
+/* includeHidden=true also returns orders of Delayed/Served items (used by the full legacy export + "show excluded" view) */
+function ordersForClient(name,includeHidden) { return state.orders.filter(o=>o.clientName===name && (includeHidden||isOrderInScope(o))).sort((a,b)=>a.createdAt-b.createdAt); }
+function clientSummary(name,includeHidden) {
+  const orders=ordersForClient(name,includeHidden); let paid=0,val=0,fc=0,qtyOrd=0,qtyAlloc=0,srpVal=0;
   orders.forEach(o=>{ const f=orderFin(o); paid+=f.paid; val+=f.valueAlloc; fc+=f.fc; qtyOrd+=Number(o.qtyOrdered)||0; qtyAlloc+=f.aq; srpVal+=f.srpValueAlloc; });
   const net=paid-val;
   return {paid,val,net,fc,qtyOrd,qtyAlloc,srpVal,isRefund:net>=0,isZero:Math.abs(net)<0.005};
@@ -784,7 +828,7 @@ function isFulfillmentEligible(o) {
      over — from its natural allocation% share or a raffle-bump manual
      override. An order that missed the cut entirely has nothing to
      prep/ship, so it shouldn't clutter the Fulfillment tab. */
-  return !o.storeInventory && allocQty(o)>0;
+  return !o.storeInventory && isOrderInScope(o) && allocQty(o)>0;
 }
 function fulfillmentEligibleOrders() {
   return state.orders.filter(isFulfillmentEligible);
@@ -853,12 +897,16 @@ function fulfillmentGroupedByClient() {
    figure exactly), a date, and a note. Deliberately client-level only
    (not per-order) — the calculated figure it's tracked against is already
    the client-level Total Refund shown in Client Overview. */
+/* Plain client name when every item is Active (identical to how records were always stored);
+   name@@<set-aside item ids> while some items are Delayed/Served, so each round keeps its own refund records. */
+function refundKey(name) { const k=scopeKey(); return k?name+'@@'+k:name; }
 function getClientRefundData(name) {
-  return state.refunds[name] || {status:'owed',method:'',actualAmount:null,date:null,note:''};
+  return state.refunds[refundKey(name)] || {status:'owed',method:'',actualAmount:null,date:null,note:''};
 }
 function setClientRefundField(name,field,value) {
-  if(!state.refunds[name]) state.refunds[name]={status:'owed',method:'',actualAmount:null,date:null,note:''};
-  state.refunds[name][field]=value;
+  const k=refundKey(name);
+  if(!state.refunds[k]) state.refunds[k]={status:'owed',method:'',actualAmount:null,date:null,note:''};
+  state.refunds[k][field]=value;
 }
 /* Clients currently owed a refund per the live calculation — the same
    isRefund && !isZero check that already drives the green "Refund ₱X"
@@ -1214,9 +1262,11 @@ function itemSettlementData(item) {
 
 function allItemSettlements() {
   const rows = state.items
-    .map(itemSettlementData)
+    .map(it=>Object.assign(itemSettlementData(it),{inScope:itemStatus(it)==='active'}))
     .filter(r => r.orderCount > 0);
-  const totals = rows.reduce((t,r)=>({
+  /* Delayed/Served items stay listed but are NOT counted in the totals — a delayed item has no known allocation yet,
+     and a served item was already settled in an earlier round. */
+  const totals = rows.filter(r=>r.inScope).reduce((t,r)=>({
     distributorDiff: t.distributorDiff+r.distributorDiff,
     clientDiff: t.clientDiff+r.clientDiff
   }), {distributorDiff:0, clientDiff:0});
@@ -1297,6 +1347,15 @@ function renderFloatBreakdown() {
     };
     let rows='';
     settle.rows.forEach(r=>{
+      if(!r.inScope){
+        rows+=`<tr class="row-excluded">
+        <td class="td-bold">${esc(r.item.name)}${statusBadge(r.item)}</td>
+        <td class="td-r mono">${r.qtyOrdered}</td>
+        <td class="td-r mono">—</td>
+        <td class="td-r td-dim" colspan="2">Not counted in totals</td>
+      </tr>`;
+        return;
+      }
       rows+=`<tr>
         <td class="td-bold">${esc(r.item.name)}</td>
         <td class="td-r mono">${r.qtyOrdered}</td>
@@ -1317,6 +1376,46 @@ function renderFloatBreakdown() {
   area.innerHTML=html;
 }
 
+/* ── LEDGER STATUS UI HELPERS ───────────────────── */
+function statusBadge(item) {
+  const st=itemStatus(item);
+  if(st==='delayed') return `<span class="st-badge delayed">⏸ Delayed</span>`;
+  if(st==='served')  return `<span class="st-badge served">✔ Served</span>`;
+  return '';
+}
+function itemStatusControl(item) {
+  const st=itemStatus(item);
+  const opt=(v,l)=>`<option value="${v}"${st===v?' selected':''}>${l}</option>`;
+  const resume=(st==='delayed')?`<div class="status-cell-actions"><button type="button" class="lt-btn" data-a="resume-only" data-id="${esc(item.id)}" title="Arrived! Make this the only item in the ledger — every other active item is marked Served">▶ Arrived — show only this</button></div>`:'';
+  return `<select class="status-sel st-${st}" data-a="item-status" data-id="${esc(item.id)}" title="Delayed = set aside until it arrives · Served = already handled in an earlier round. Either one is left out of the client breakdown, refunds, fulfillment and exports.">${opt('active','● Active')}${opt('delayed','⏸ Delayed')}${opt('served','✔ Served')}</select>${resume}`;
+}
+function setItemStatus(id,status) {
+  const item=getItem(id); if(!item) return;
+  if(status!=='delayed'&&status!=='served') status='active';
+  item.ledgerStatus=status; ui.editOrderId=null;
+  renderAll(); save();
+  const msg=status==='delayed'?`"${item.name}" set aside as Delayed — it's out of the client breakdown until you set it back to Active.`
+          :status==='served'?`"${item.name}" marked Served — hidden from the client breakdown.`
+          :`"${item.name}" is Active again and back in the client breakdown.`;
+  toast(msg,'ok');
+}
+/* "It arrived": make this item the only one in the ledger. Every other ACTIVE item becomes Served; other Delayed items stay Delayed. */
+function resumeOnlyItem(id) {
+  const item=getItem(id); if(!item) return;
+  const others=state.items.filter(i=>i.id!==id && itemStatus(i)==='active');
+  if(!confirm(`Show only "${item.name}"?\n\nIt becomes Active, and ${others.length} other active item${others.length===1?'':'s'} will be marked Served (hidden from the client breakdown, refunds, fulfillment and exports). You can undo this right after.`)) return;
+  const snapshot=state.items.map(i=>[i.id,i.ledgerStatus]);
+  item.ledgerStatus='active'; others.forEach(i=>{ i.ledgerStatus='served'; });
+  ui.editOrderId=null; ui.activeTab='clients'; renderAll(); save();
+  toastUndo(`Now showing only "${item.name}".`,()=>{ snapshot.forEach(([iid,st])=>{ const it=getItem(iid); if(it) it.ledgerStatus=st; }); renderAll(); save(); });
+}
+function resetAllItemStatus() {
+  const snapshot=state.items.map(i=>[i.id,i.ledgerStatus]);
+  state.items.forEach(i=>{ i.ledgerStatus='active'; });
+  renderAll(); save();
+  toastUndo('All items are Active again.',()=>{ snapshot.forEach(([iid,st])=>{ const it=getItem(iid); if(it) it.ledgerStatus=st; }); renderAll(); save(); });
+}
+
 /* ── RENDER: ITEMS TABLE ────────────────────────── */
 function renderItems() {
   $e('itemBadge').textContent=state.items.length+' item'+(state.items.length===1?'':'s');
@@ -1334,6 +1433,7 @@ function renderItems() {
         <td><input class="ci num sm" type="number" data-f="srp" value="${esc(item.srp)}" min="0" step="0.01"></td>
         <td style="white-space:nowrap"><input class="alloc-input" type="number" data-f="alloc" data-a="item-alloc" data-id="${esc(item.id)}" value="${alloc}" min="0" max="100" step="0.01"><span class="alloc-suffix">%</span></td>
         <td class="td-r td-dim">${php(distDP)}</td><td class="td-r td-dim">${php(pubDP)}</td>
+        <td>${itemStatusControl(item)}</td>
         <td class="td-r" style="white-space:nowrap">
           <button type="button" class="icon-btn save" data-a="save-item" data-id="${esc(item.id)}" title="Save">✓</button>
           <button type="button" class="icon-btn" data-a="cancel-item" title="Cancel">✕</button>
@@ -1346,6 +1446,7 @@ function renderItems() {
         <td class="td-r mono">${php(item.srp)}</td>
         <td style="white-space:nowrap"><input class="alloc-input" type="number" data-f="alloc" data-a="item-alloc" data-id="${esc(item.id)}" value="${alloc}" min="0" max="100" step="0.01" style="color:${ac}"><span class="alloc-suffix">%</span></td>
         <td class="td-r mono td-dim">${php(distDP)}</td><td class="td-r mono td-dim">${php(pubDP)}</td>
+        <td>${itemStatusControl(item)}</td>
         <td class="td-r" style="white-space:nowrap">
           <button type="button" class="icon-btn" data-a="edit-item" data-id="${esc(item.id)}" title="Edit">✏</button>
           <button type="button" class="icon-btn del" data-a="del-item" data-id="${esc(item.id)}" title="Delete">✕</button>
@@ -1353,7 +1454,7 @@ function renderItems() {
     }
   });
   area.innerHTML=`<div class="tbl-wrap"><table class="items-tbl">
-    <thead><tr><th>Item Name / SKU</th><th>ETA</th><th class="r">Cost Price</th><th class="r">SRP</th><th class="c" title="Per-item allocation %">Alloc %</th><th class="r">Dist. DP 30%</th><th class="r">Public DP 30%</th><th></th></tr></thead>
+    <thead><tr><th>Item Name / SKU</th><th>ETA</th><th class="r">Cost Price</th><th class="r">SRP</th><th class="c" title="Per-item allocation %">Alloc %</th><th class="r">Dist. DP 30%</th><th class="r">Public DP 30%</th><th title="Delayed or Served items are left out of the client breakdown">Ledger Status</th><th></th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 }
 
@@ -1420,9 +1521,9 @@ function renderItemBreakdown() {
         </div>`
       : `<div class="brk-bar brk-bar-empty"></div><div class="brk-legend-empty">No orders yet</div>`;
 
-    html+=`<div class="brk-card">
+    html+=`<div class="brk-card${itemStatus(item)!=='active'?' brk-card-dim':''}">
       <div class="brk-card-hd">
-        <div class="brk-card-name">${esc(item.name)}</div>
+        <div class="brk-card-name">${esc(item.name)}${statusBadge(item)}</div>
         <div class="brk-card-eta">${esc(item.eta||'No ETA set')}</div>
       </div>
 
@@ -2096,10 +2197,15 @@ function renderLedgerToolbar() {
     <div class="lt-left">
       <button type="button" class="lt-btn${ui.sortClients==='alpha'?' active':''}" data-a="toggle-sort" title="Toggle sort order">⇅ ${sortLabel}</button>
       <div class="lt-divider"></div>
-      <button type="button" class="lt-btn" data-a="export-excel" title="Export to Excel (.xlsx)">📊 Export Excel</button>
+      <button type="button" class="lt-btn" data-a="export-excel" title="Full workbook with live formulas — always includes every item, even Delayed/Served ones">📊 Export Excel</button>
+      <button type="button" class="lt-btn" data-a="export-client-report" title="2-sheet report: Client Summary (allocation vs DP, refund/balance) + Fulfillment checklist. Follows the current ledger scope.">📑 Client Report</button>
       <button type="button" class="lt-btn" data-a="download-all-receipts" title="Download a receipt PNG for every client, one at a time">⬇ Download All Receipts</button>
     </div>
     <div class="lt-right">
+      ${(()=>{ const nd=state.items.filter(i=>itemStatus(i)==='delayed').length, ns=state.items.filter(i=>itemStatus(i)==='served').length; if(!nd&&!ns) return '';
+        return `<span class="lt-chip" title="Items left out of the client breakdown">${nd?`⏸ ${nd} delayed`:''}${nd&&ns?' · ':''}${ns?`✔ ${ns} served`:''}</span>
+        <button type="button" class="lt-btn${ui.showHiddenItems?' active':''}" data-a="toggle-show-hidden" title="List the left-out items in Client Overview (dimmed, never counted in totals)">👁 ${ui.showHiddenItems?'Hide':'Show'} left-out</button>
+        <button type="button" class="lt-btn" data-a="reset-item-status" title="Set every item back to Active">↺ All Active</button>`; })()}
       <div class="col-picker-wrap">
         <button type="button" class="lt-btn${ui.showColPicker?' active':''}" data-a="toggle-col-picker">
           ☰ Columns${hiddenCount>0?` <span style="color:var(--gold);font-size:10px">(${hiddenCount} hidden)</span>`:''}
@@ -2186,7 +2292,11 @@ function renderTabContent() {
 
 /* ── RENDER: CLIENT OVERVIEW TAB ────────────────── */
 function renderClientTab() {
-  const area=$e('tabContent'), names=clientNames();
+  const area=$e('tabContent'), names=clientNames(ui.showHiddenItems);
+  if(state.orders.length && !names.length){
+    area.innerHTML=`<div class="empty"><div class="empty-ico">⏸</div><strong>Every item is currently Delayed or Served</strong><span>Nothing is in the client breakdown. Set an item back to Active in the Item Master List, or use “↺ All Active” above.</span></div>`;
+    return;
+  }
   if(!state.orders.length){
     const msg=state.items.length?'Use the form above to log your first pre-order.':'Add items first, then create client orders here.';
     area.innerHTML=`<div class="empty"><div class="empty-ico">📋</div><strong>No orders yet</strong><span>${msg}</span></div>`;
@@ -2204,14 +2314,14 @@ function renderClientTab() {
 
   let tbody='<tbody>';
   names.forEach(name=>{
-    const orders=ordersForClient(name), summary=clientSummary(name);
+    const orders=ordersForClient(name,ui.showHiddenItems), summary=clientSummary(name), hasScoped=ordersForClient(name).length>0;
     const collapsed=ui.collapsedClients.has(name);
     const chevron=collapsed?'▶':'▼';
     const fcS=summary.fc>0.005?'kpi-pos':summary.fc<-0.005?'kpi-neg':'td-dim';
 
     let collapsedInfo='';
     if(collapsed){
-      const netStr=summary.isZero?'Settled':summary.isRefund?`Refund ${php(summary.net)}`:`Balance ${php(Math.abs(summary.net))}`;
+      const netStr=!hasScoped?'Nothing in scope':summary.isZero?'Settled':summary.isRefund?`Refund ${php(summary.net)}`:`Balance ${php(Math.abs(summary.net))}`;
       const netCls=summary.isZero?'':(summary.isRefund?'kpi-pos':'kpi-neg');
       collapsedInfo=`<span class="c-collapsed-summary">
         <span>${php(summary.paid)} paid</span>
@@ -2250,6 +2360,8 @@ function renderClientTab() {
         if(fin.isZero) refCell=`<span class="pill pill-ok">Settled</span>`;
         else if(fin.isRefund) refCell=`<span class="pill pill-ref">Refund ${php(fin.diff)}</span>`;
         else refCell=`<span class="pill pill-bal">Balance ${php(Math.abs(fin.diff))}</span>`;
+        const excluded=!isOrderInScope(order);
+        if(excluded) refCell=`<span class="pill pill-ok">Not counted</span>`;
 
         /* Build alloc cell */
         let allocInner;
@@ -2271,7 +2383,7 @@ function renderClientTab() {
         }
 
         const cellMap={
-          item:     `<td class="${item?'td-bold':''}">${iName} ${siBadge} ${floatBadge} ${raffleWinnerBadge} ${discountBadge}</td>`,
+          item:     `<td class="${item?'td-bold':''}">${iName} ${siBadge} ${floatBadge} ${raffleWinnerBadge} ${discountBadge}${item?statusBadge(item):''}</td>`,
           eta:      `<td class="td-dim">${iEta}</td>`,
           qty:      isEdit?`<td class="td-r"><input id="eq_${esc(order.id)}" class="ci num sm" type="number" value="${esc(order.qtyOrdered)}" min="1"></td>`:`<td class="td-r mono">${esc(order.qtyOrdered)}</td>`,
           alloc:    `<td class="td-c">${allocInner}</td>`,
@@ -2284,10 +2396,11 @@ function renderClientTab() {
             ?`<td class="td-r" style="white-space:nowrap"><button type="button" class="icon-btn save" data-a="save-order" data-id="${esc(order.id)}">✓</button> <button type="button" class="icon-btn" data-a="cancel-order">✕</button></td>`
             :`<td class="td-r" style="white-space:nowrap"><button type="button" class="icon-btn" data-a="edit-order" data-id="${esc(order.id)}" title="Edit">✏</button> <button type="button" class="icon-btn del" data-a="del-order" data-id="${esc(order.id)}" title="Delete">✕</button></td>`
         };
-        tbody+=`<tr data-oid="${esc(order.id)}">${visCols.map(c=>cellMap[c.key]).join('')}</tr>`;
+        tbody+=`<tr data-oid="${esc(order.id)}"${excluded?' class="row-excluded"':''}>${visCols.map(c=>cellMap[c.key]).join('')}</tr>`;
       });
 
       /* Subtotal */
+      if(hasScoped){
       const fcSubCls=summary.fc>0.005?'kpi-pos':summary.fc<-0.005?'kpi-neg':'td-dim';
       let subPill;
       if(summary.isZero) subPill=`<span class="pill pill-ok">Settled</span>`;
@@ -2301,6 +2414,7 @@ function renderClientTab() {
         refund:`<td class="td-r">${subPill}</td>`, act:`<td></td>`
       };
       tbody+=`<tr class="c-sub">${visCols.map(c=>subMap[c.key]).join('')}</tr>`;
+      }
     }
   });
   tbody+='</tbody>';
@@ -2531,6 +2645,9 @@ function renderItemTab(itemId) {
       </div>
     </div>
   </div>`;
+  { const st=itemStatus(item);
+    if(st==='delayed') html+=`<div class="status-banner delayed"><span>⏸ <strong>Delayed</strong> — this item's orders (and their DP) are set aside: left out of Client Overview totals, Refunds, Fulfillment and exports until you set it back to Active.</span><button type="button" class="lt-btn" data-a="resume-only" data-id="${esc(item.id)}">▶ Arrived — show only this</button></div>`;
+    else if(st==='served') html+=`<div class="status-banner served"><span>✔ <strong>Served</strong> — already handled, so it's left out of the client breakdown, Refunds, Fulfillment and exports.</span></div>`; }
   if(!orders.length){html+=`<div class="empty" style="margin-top:14px"><div class="empty-ico">📋</div><strong>No orders for this item yet</strong><span>Orders created for this item will appear here.</span></div>`;$e('tabContent').innerHTML=html;return;}
 
   const sortIsQty=ui.itemTabSort==='qtyDesc';
@@ -2976,9 +3093,9 @@ function refundBalanceFormula(paidRef,valueRef){
    ledger's "📋 Copy Update" button, so both always say exactly the same thing. Deleted-item
    orders are silently omitted from the itemized list (matching the receipt generator's
    behavior) since this text is meant to be sent to the client as-is. */
-function buildClientMessageText(name) {
-  const orders=ordersForClient(name).filter(o=>getItem(o.itemId));
-  const summary=clientSummary(name);
+function buildClientMessageText(name,includeHidden) {
+  const orders=ordersForClient(name,includeHidden).filter(o=>getItem(o.itemId));
+  const summary=clientSummary(name,includeHidden);
   const lines=[`Hi ${name}! Here's your pre-order allocation summary:`,''];
   const announcedWinItems=new Set();
   orders.forEach(order=>{
@@ -2994,6 +3111,14 @@ function buildClientMessageText(name) {
       lines.push(`  🎉 Congrats — you won our raffle for ${item.name}! Your allocation above already includes a bonus unit.`);
     }
   });
+  /* Items set aside as Delayed: tell the client their DP for it is being held, not forgotten or refunded. */
+  if(!includeHidden){
+    const delayedOrders=ordersForClient(name,true).filter(o=>{ const it=getItem(o.itemId); return it && itemStatus(it)==='delayed'; });
+    if(delayedOrders.length){
+      lines.push('','⏳ Still pending (delayed by the distributor):');
+      delayedOrders.forEach(o=>{ const it=getItem(o.itemId); lines.push(`- ${it.name}: Ordered ${o.qtyOrdered}, ${php(Number(o.amountPaid)||0)} downpayment on hold until it arrives — the figures below don't include it.`); });
+    }
+  }
   lines.push('',`Total downpayment received: ${php(summary.paid)}`,`Total value of allocated items: ${php(summary.val)}`,'');
   if(summary.isZero) lines.push('Your account is fully settled — no refund or balance due.');
   else if(summary.isRefund){
@@ -3158,8 +3283,8 @@ function exportToExcel(){
   clientData.push(['Client','Item / SKU','ETA','Qty Ordered','SRP','DP / Unit (30%)','Required DP','Allocation %','Override?','Raw Allocated (Unrounded)','Qty Allocated (Floored)','Amount Paid (DP)','Amount Allocated (SRP)','Cost Price','Store Inventory?','Value of Allocated Goods','Floating Capital','Refund / Balance','Client Message (Copy & Send)']);
 
   const clientBlocks=[];
-  clientNames().forEach(name=>{
-    const orders=ordersForClient(name);
+  clientNames(true).forEach(name=>{
+    const orders=ordersForClient(name,true);
     const startRow=clientData.length;
     orders.forEach(order=>{
       const item=getItem(order.itemId);
@@ -3171,7 +3296,7 @@ function exportToExcel(){
     });
     const endRow=clientData.length-1;
     clientBlocks.push({name,startRow,endRow});
-    clientData.push([`SUBTOTAL — ${name}`,'','','','','','','','','','',0,0,'','',0,0,'',buildClientMessageText(name)]);
+    clientData.push([`SUBTOTAL — ${name}`,'','','','','','','','','','',0,0,'','',0,0,'',buildClientMessageText(name,true)]);
     clientData.push([]);
   });
 
@@ -3186,8 +3311,8 @@ function exportToExcel(){
   });
 
   let rr=headerRow+1;
-  clientNames().forEach(name=>{
-    const orders=ordersForClient(name);
+  clientNames(true).forEach(name=>{
+    const orders=ordersForClient(name,true);
     const block=clientBlocks.find(b=>b.name===name);
     orders.forEach(order=>{
       const item=getItem(order.itemId);
@@ -3227,7 +3352,7 @@ function exportToExcel(){
       rr++;
     });
 
-    const summary=clientSummary(name);
+    const summary=clientSummary(name,true);
     const subRow=rr;
     setFormulaCell(wsClient,subRow,CO.paid,`SUM(${rangeRef(CO.paid,block.startRow,block.endRow)})`,summary.paid);
     setFormulaCell(wsClient,subRow,CO.amtAlloc,`SUM(${rangeRef(CO.amtAlloc,block.startRow,block.endRow)})`,summary.srpVal);
@@ -3287,6 +3412,197 @@ function exportToExcel(){
   toast(`Excel exported with live formulas: overview + breakdown + ${state.items.length} item sheet${state.items.length===1?'':'s'}.`,'ok');
 }
 
+
+/* ── CLIENT REPORT EXPORT (2 sheets, styled) ─────────────────────────────
+   Sheet 1 "Client Summary": every client's orders — ordered item, order qty,
+   actual allocated qty, pre-order DP, allocated-qty price, and the balance /
+   refund needed. Sheet 2 "Fulfillment": a ship-it checklist, one row per item,
+   client name only on each client's first row.
+   Follows the CURRENT ledger scope (Delayed / Served items are left out and
+   named in the header), client orders only (store-inventory stock excluded).
+   Unlike the full "Export Excel", this uses ExcelJS purely so the sheets can be
+   styled (colors, banding, frozen headers, dropdowns). Allocated Price and
+   Balance/Refund are live formulas, so typing a different Allocated Qty in
+   Excel updates the money columns and every subtotal. */
+function activeSessionName(){ const m=getLibrary().find(s=>s.id===ui.activeSessionId); return m?m.name:'Session'; }
+async function exportClientReport(){
+  if(typeof ExcelJS==='undefined'){ toast('Excel library not loaded — requires internet connection.','err'); return; }
+  const clients=clientNames().map(name=>({name,orders:ordersForClient(name).filter(o=>!o.storeInventory&&getItem(o.itemId))})).filter(c=>c.orders.length);
+  if(!clients.length){ toast('Nothing to export — no client orders are in the current ledger scope.','err'); return; }
+  try{
+    const sessionName=activeSessionName(), dateStr=new Date().toISOString().slice(0,10);
+    const C={head:'FF3B3470',headTxt:'FFFFFFFF',band:'FFF3F2FC',sub:'FFE4E1F7',line:'FFD0D3E2',ink:'FF1F2340',grey:'FF6B7088',
+             green:'FF1B7F5C',greenBg:'FFDDF5EC',red:'FFC0392B',redBg:'FFFBE3E0',gold:'FF9A6B00',goldBg:'FFFFF3CC'};
+    const thin={style:'thin',color:{argb:C.line}};
+    const fill=argb=>({type:'pattern',pattern:'solid',fgColor:{argb}});
+    const PESO='"₱"#,##0.00', BAL='"Refund ₱"#,##0.00;"Balance ₱"#,##0.00;"Settled"';
+    const baseFont={name:'Calibri',size:11,color:{argb:C.ink}};
+
+    const wb=new ExcelJS.Workbook(); wb.creator='Crate Drop Collective'; wb.created=new Date();
+    wb.calcProperties={fullCalcOnLoad:true};   /* Excel recalculates every formula on open, so edited Allocated Qty values flow through immediately */
+
+    const excl=state.items.filter(i=>itemStatus(i)!=='active' && itemOrders(i.id).length);
+    const dl=excl.filter(i=>itemStatus(i)==='delayed').map(i=>i.name), sv=excl.filter(i=>itemStatus(i)==='served').map(i=>i.name);
+    const scopeText=(excl.length
+      ? 'Left out of this report — '+[dl.length?`Delayed: ${dl.join(', ')}`:'',sv.length?`Served: ${sv.join(', ')}`:''].filter(Boolean).join('  ·  ')
+      : 'All items included')+'  ·  Client orders only (store-inventory stock excluded)';
+
+    const header=(ws,rowNum,labels)=>{
+      const r=ws.getRow(rowNum); r.height=32;
+      labels.forEach((l,i)=>{ const c=r.getCell(i+1); c.value=l; c.font={name:'Calibri',size:11,bold:true,color:{argb:C.headTxt}}; c.fill=fill(C.head);
+        c.alignment={vertical:'middle',horizontal:i===0||i===1?'left':'center',wrapText:true}; c.border={top:thin,bottom:thin,left:thin,right:thin}; });
+    };
+    const titleBlock=(ws,title,lastCol)=>{
+      ws.mergeCells(`A1:${lastCol}1`); const t=ws.getCell('A1'); t.value=title; t.font={name:'Calibri',size:18,bold:true,color:{argb:C.head}}; t.alignment={vertical:'middle'}; ws.getRow(1).height=30;
+      ws.mergeCells(`A2:${lastCol}2`); const sb=ws.getCell('A2'); sb.value=`${sessionName}  ·  exported ${dateStr}\n${scopeText}`; sb.font={name:'Calibri',size:10,italic:true,color:{argb:C.grey}}; sb.alignment={vertical:'top',wrapText:true}; ws.getRow(2).height=30;
+    };
+    const kpi=(ws,labelCell,valueCell,label,value,color,numFmt)=>{
+      const l=ws.getCell(labelCell); l.value=label; l.font={name:'Calibri',size:9,bold:true,color:{argb:C.grey}}; l.alignment={vertical:'bottom'};
+      const v=ws.getCell(valueCell); v.value=value; v.font={name:'Calibri',size:15,bold:true,color:{argb:color||C.ink}}; v.alignment={vertical:'middle',horizontal:'left'}; if(numFmt) v.numFmt=numFmt;
+    };
+
+    /* ───────── SHEET 1: CLIENT SUMMARY ───────── */
+    const ws1=wb.addWorksheet('Client Summary',{views:[{state:'frozen',ySplit:6,showGridLines:false}],properties:{tabColor:{argb:C.head}}});
+    ws1.columns=[{width:26},{width:38},{width:11},{width:14},{width:17},{width:14},{width:19},{width:22}];
+    titleBlock(ws1,'Pre-Order Client Summary','H');
+    ws1.getRow(3).height=16; ws1.getRow(4).height=26; ws1.getRow(5).height=8;
+    header(ws1,6,['Client','Ordered Item','Order Qty','Actual Allocated Qty','Pre-Order DP','Unit Price','Allocated Qty Price','Balance / Refund']);
+
+    let r=7; const subRows=[]; let gi=0;
+    const firstDataRow=r;
+    let totRefund=0,totBal=0;
+    clients.forEach(cl=>{
+      const band=(gi%2===1); const start=r; let sumQty=0,sumAlloc=0,sumDP=0,sumPrice=0;
+      cl.orders.forEach((o,idx)=>{
+        const aq=allocQty(o), unit=dpPrice(o), price=round2(aq*unit), dp=round2(Number(o.amountPaid)||0), bal=round2(dp-price);
+        const row=ws1.getRow(r); const item=getItem(o.itemId);
+        row.getCell(1).value=idx===0?cl.name:null;
+        row.getCell(2).value=item.name;
+        row.getCell(3).value=Number(o.qtyOrdered)||0;
+        row.getCell(4).value=aq;
+        row.getCell(5).value=dp;
+        row.getCell(6).value=unit;
+        row.getCell(7).value={formula:`D${r}*F${r}`,result:price};
+        row.getCell(8).value={formula:`ROUND(E${r}-G${r},2)`,result:bal};
+        for(let c=1;c<=8;c++){
+          const cell=row.getCell(c); cell.font=Object.assign({},baseFont);
+          if(band) cell.fill=fill(C.band);
+          cell.border={left:thin,right:thin,bottom:thin,top:idx===0?{style:'medium',color:{argb:C.head}}:thin};
+          cell.alignment={vertical:'middle',wrapText:c===2,horizontal:(c===3||c===4)?'center':(c>=5?'right':'left')};
+        }
+        row.getCell(1).font={name:'Calibri',size:11,bold:true,color:{argb:C.ink}};
+        [5,6,7].forEach(c=>row.getCell(c).numFmt=PESO); row.getCell(8).numFmt=BAL;
+        if(aq===0) row.getCell(4).font={name:'Calibri',size:11,bold:true,color:{argb:C.red}};
+        else if(aq<(Number(o.qtyOrdered)||0)) row.getCell(4).font={name:'Calibri',size:11,bold:true,color:{argb:C.gold}};
+        row.height=20;
+        sumQty+=Number(o.qtyOrdered)||0; sumAlloc+=aq; sumDP+=dp; sumPrice+=price; r++;
+      });
+      const end=r-1, net=round2(sumDP-sumPrice);
+      const sr=ws1.getRow(r);
+      sr.getCell(2).value=`Total — ${cl.name}`;
+      sr.getCell(3).value={formula:`SUBTOTAL(9,C${start}:C${end})`,result:sumQty};
+      sr.getCell(4).value={formula:`SUBTOTAL(9,D${start}:D${end})`,result:sumAlloc};
+      sr.getCell(5).value={formula:`SUBTOTAL(9,E${start}:E${end})`,result:round2(sumDP)};
+      sr.getCell(7).value={formula:`SUBTOTAL(9,G${start}:G${end})`,result:round2(sumPrice)};
+      sr.getCell(8).value={formula:`SUBTOTAL(9,H${start}:H${end})`,result:net};
+      for(let c=1;c<=8;c++){
+        const cell=sr.getCell(c); cell.font={name:'Calibri',size:11,bold:true,color:{argb:C.ink}}; cell.fill=fill(C.sub);
+        cell.border={top:thin,bottom:{style:'thin',color:{argb:C.head}},left:thin,right:thin};
+        cell.alignment={vertical:'middle',horizontal:(c===3||c===4)?'center':(c>=5?'right':'left')};
+      }
+      [5,7].forEach(c=>sr.getCell(c).numFmt=PESO); sr.getCell(8).numFmt=BAL; sr.height=22;
+      subRows.push(r); if(net>0) totRefund+=net; else if(net<0) totBal+=-net;
+      r++; gi++;
+      ws1.getRow(r).height=8; r++;   /* thin spacer between clients */
+    });
+    const lastData=r-2;
+
+    /* Grand total */
+    const gr=ws1.getRow(r);
+    { let q=0,a=0,d=0,pr=0; clients.forEach(cl=>cl.orders.forEach(o=>{ const aq=allocQty(o); q+=Number(o.qtyOrdered)||0; a+=aq; d+=Number(o.amountPaid)||0; pr+=aq*dpPrice(o); }));
+      const sumAll=(col,res)=>({formula:`SUBTOTAL(9,${col}${firstDataRow}:${col}${lastData})`,result:res});
+      gr.getCell(1).value='GRAND TOTAL';
+      gr.getCell(3).value=sumAll('C',q); gr.getCell(4).value=sumAll('D',a); gr.getCell(5).value=sumAll('E',round2(d));
+      gr.getCell(7).value=sumAll('G',round2(pr)); gr.getCell(8).value=sumAll('H',round2(d-pr)); }
+    for(let c=1;c<=8;c++){
+      const cell=gr.getCell(c); cell.font={name:'Calibri',size:12,bold:true,color:{argb:C.headTxt}}; cell.fill=fill(C.head);
+      cell.alignment={vertical:'middle',horizontal:(c===3||c===4)?'center':(c>=5?'right':'left')};
+    }
+    [5,7].forEach(c=>gr.getCell(c).numFmt=PESO); gr.getCell(8).numFmt=BAL; gr.height=26;
+    ws1.getRow(r+1).height=8;
+    ws1.mergeCells(`A${r+2}:H${r+2}`);
+    const legend=ws1.getCell(`A${r+2}`); legend.value='Balance / Refund = Pre-Order DP − Allocated Qty Price.   Green “Refund” = money to send back to the client · Red “Balance” = amount the client still owes · Allocated Qty in gold = fewer than ordered, red = nothing allocated.';
+    legend.font={name:'Calibri',size:9.5,italic:true,color:{argb:C.grey}}; legend.alignment={wrapText:true,vertical:'top'}; ws1.getRow(r+2).height=28;
+
+    /* KPI strip (gross refunds / gross balances — summed from the client subtotals, so they stay live) */
+    const refundF=subRows.map(x=>`MAX(0,H${x})`).join('+'), balF=subRows.map(x=>`MAX(0,-H${x})`).join('+');
+    kpi(ws1,'A3','A4','CLIENTS',clients.length,C.ink);
+    kpi(ws1,'B3','B4','REFUNDS TO RELEASE',{formula:refundF,result:round2(totRefund)},C.green,PESO);
+    ws1.mergeCells('E3:G3'); ws1.mergeCells('E4:G4');
+    kpi(ws1,'E3','E4','BALANCES TO COLLECT',{formula:balF,result:round2(totBal)},C.red,PESO);
+
+    const cfFont=(color,bg)=>({font:{color:{argb:color},bold:true},fill:{type:'pattern',pattern:'solid',bgColor:{argb:bg}}});
+    ws1.addConditionalFormatting({ref:`H${firstDataRow}:H${lastData}`,rules:[
+      {type:'cellIs',operator:'greaterThan',formulae:[0],priority:1,style:cfFont(C.green,C.greenBg)},
+      {type:'cellIs',operator:'lessThan',formulae:[0],priority:2,style:cfFont(C.red,C.redBg)},
+    ]});
+    ws1.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'6:6',margins:{left:0.4,right:0.4,top:0.5,bottom:0.5,header:0.3,footer:0.3}};
+
+    /* ───────── SHEET 2: FULFILLMENT ───────── */
+    const ws2=wb.addWorksheet('Fulfillment',{views:[{state:'frozen',ySplit:6,showGridLines:false}],properties:{tabColor:{argb:C.green}}});
+    ws2.columns=[{width:26},{width:42},{width:15},{width:12},{width:46}];
+    titleBlock(ws2,'Fulfillment Checklist','E');
+    ws2.getRow(3).height=16; ws2.getRow(4).height=26; ws2.getRow(5).height=8;
+    header(ws2,6,['Client Name','Product Name','Allocated Quantity','Shipped','Notes']);
+    const fClients=clientNames().map(name=>({name,orders:ordersForClient(name).filter(isFulfillmentEligible)})).filter(c=>c.orders.length);
+    let fr=7; const f0=fr; let fUnits=0,fShipped=0,fGi=0;
+    fClients.forEach(cl=>{
+      const band=(fGi%2===1);
+      cl.orders.forEach((o,idx)=>{
+        const item=getItem(o.itemId), aq=allocQty(o); const row=ws2.getRow(fr);
+        row.getCell(1).value=idx===0?cl.name:null; row.getCell(2).value=item.name; row.getCell(3).value=aq;
+        row.getCell(4).value=o.shipped?'Yes':'No'; row.getCell(5).value=o.fulfillmentNote||'';
+        for(let c=1;c<=5;c++){
+          const cell=row.getCell(c); cell.font=Object.assign({},baseFont); if(band) cell.fill=fill(C.band);
+          cell.border={left:thin,right:thin,bottom:thin,top:idx===0?{style:'medium',color:{argb:C.head}}:thin};
+          cell.alignment={vertical:'middle',wrapText:(c===2||c===5),horizontal:(c===3||c===4)?'center':'left'};
+        }
+        row.getCell(1).font={name:'Calibri',size:11,bold:true,color:{argb:C.ink}};
+        row.getCell(4).dataValidation={type:'list',allowBlank:false,formulae:['"Yes,No"'],showErrorMessage:true,errorTitle:'Shipped',error:'Choose Yes or No'};
+        row.height=(o.fulfillmentNote&&o.fulfillmentNote.length>48)?34:20;
+        fUnits+=aq; if(o.shipped) fShipped+=aq; fr++;
+      });
+      fGi++;
+    });
+    if(!fClients.length){
+      ws2.mergeCells('A7:E7'); const e=ws2.getCell('A7'); e.value='Nothing to fulfill yet — no client order has an allocation in the current ledger scope.'; e.font={name:'Calibri',size:11,italic:true,color:{argb:C.grey}}; e.alignment={horizontal:'center',vertical:'middle'}; ws2.getRow(7).height=30; fr=8;
+    }
+    const f1=fr-1;
+    if(fClients.length){
+      kpi(ws2,'A3','A4','UNITS TO SHIP',{formula:`SUM(C${f0}:C${f1})`,result:fUnits},C.ink);
+      kpi(ws2,'B3','B4','UNITS SHIPPED',{formula:`SUMIF(D${f0}:D${f1},"Yes",C${f0}:C${f1})`,result:fShipped},C.green);
+      kpi(ws2,'C3','C4','REMAINING',{formula:`A4-B4`,result:fUnits-fShipped},C.gold);
+      ws2.addConditionalFormatting({ref:`D${f0}:D${f1}`,rules:[
+        {type:'cellIs',operator:'equal',formulae:['"Yes"'],priority:1,style:cfFont(C.green,C.greenBg)},
+        {type:'cellIs',operator:'equal',formulae:['"No"'],priority:2,style:cfFont(C.gold,C.goldBg)},
+      ]});
+      ws2.addConditionalFormatting({ref:`A${f0}:C${f1}`,rules:[
+        {type:'expression',formulae:[`$D${f0}="Yes"`],priority:3,style:{font:{color:{argb:'FF9AA0B8'}}}},
+      ]});
+    }
+    ws2.pageSetup={orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'6:6',margins:{left:0.4,right:0.4,top:0.5,bottom:0.5,header:0.3,footer:0.3}};
+
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url=URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=url; a.download=`${sanitizeFilename(sessionName)} - Client Report ${dateStr}.xlsx`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),2000);
+    toast(`Client Report exported: ${clients.length} client${clients.length===1?'':'s'}, ${fClients.length} with items to fulfill.`,'ok');
+  }catch(err){
+    console.error(err); toast('Could not build the Client Report: '+(err&&err.message?err.message:'unknown error'),'err');
+  }
+}
+
 /* ── EVENT DELEGATION ───────────────────────────── */
 document.addEventListener('keydown',function(e){
   if(e.key==='Escape'&&ui.showSessionPanel){ ui.showSessionPanel=false; renderSessionPanel(); }
@@ -3342,6 +3658,10 @@ document.addEventListener('click',function(e){
     case 'cols-essential':
       ui.hiddenCols=new Set(['eta','float','act']); ui.showColPicker=false; renderLedger(); save(); break;
     case 'export-excel':   exportToExcel(); break;
+    case 'export-client-report': exportClientReport(); break;
+    case 'toggle-show-hidden': ui.showHiddenItems=!ui.showHiddenItems; renderLedger(); break;
+    case 'reset-item-status':  resetAllItemStatus(); break;
+    case 'resume-only':        resumeOnlyItem(id); break;
     case 'download-all-receipts': generateAllReceipts(); break;
     case 'fulfillment-filter-status':
       ui.fulfillmentStatusFilter=btn.dataset.val; renderTabContent(); renderTabNav(); save(); break;
@@ -3400,6 +3720,7 @@ document.addEventListener('change',function(e){
     document.querySelectorAll(`[data-a="item-alloc"][data-id="${el.dataset.id}"]`).forEach(inp=>{ if(inp!==el) inp.value=item.allocationPct; });
     renderLedger(); save();
   }
+  if(a==='item-status'){ setItemStatus(el.dataset.id,el.value); return; }
   if(a==='ov-toggle') toggleOverride(el.dataset.id);
   if(a==='ov-qty'){ setOverrideQty(el.dataset.id,el.value); renderLedger(); renderDash(); }
   if(a==='actual-alloc-toggle'){
@@ -3703,7 +4024,7 @@ function ensureActiveSession(){
    per-record defaults used everywhere else in the app. Shared by initial load,
    session switching, and file import so all three paths stay in sync. */
 function applySessionBlob(d){
-  state.items=Array.isArray(d.items)?d.items.map(i=>Object.assign({allocationPct:100,actualAllocOverride:false,actualAllocQty:0},i)):[];
+  state.items=Array.isArray(d.items)?d.items.map(i=>Object.assign({allocationPct:100,actualAllocOverride:false,actualAllocQty:0,ledgerStatus:'active'},i)):[];
   state.orders=Array.isArray(d.orders)?d.orders.map(o=>Object.assign({storeInventory:false,manualOverride:false,overriddenQty:0,fundedByFloat:false,raffleWinner:false,prepared:false,shipped:false,shippedAt:null,fulfillmentNote:''},o)):[];
   state.raffles=(d.raffles&&typeof d.raffles==='object')?d.raffles:{};
   state.sales=Array.isArray(d.sales)?d.sales.map(s=>Object.assign({shipped:false,notes:'',buyerName:'Walk-in'},s)):[];
