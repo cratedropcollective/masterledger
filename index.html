@@ -371,6 +371,15 @@ tbody tr:hover td { background:rgba(124,111,247,0.05); }
 tr.row-current td { background:var(--accent-gl); }
 tr.row-current td:first-child { box-shadow:inset 3px 0 0 var(--accent); }
 
+/* ── MONEY IN & OUT ──────────────────────────────── */
+.mf-bar { height:10px; background:var(--surf-3); border-radius:5px; overflow:hidden; min-width:90px; }
+.mf-fill { height:100%; border-radius:5px; min-width:2px; }
+.mf-fill.pos { background:var(--green); } .mf-fill.neg { background:var(--red); }
+.mf-n { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; background:var(--accent-gl); color:var(--accent-l); font-size:11px; font-weight:700; margin-right:8px; }
+tr.mf-main td { padding-top:10px; padding-bottom:10px; font-weight:600; }
+tr.mf-sub td { font-size:11.5px; color:var(--text-d); padding-top:2px; padding-bottom:2px; }
+tr.mf-sub td:first-child { padding-left:44px; }
+
 /* ── PILLS ────────────────────────────────────────── */
 .pill { display:inline-flex; align-items:center; padding:3px 9px; border-radius:20px; font-size:11.5px; font-weight:600; font-family:var(--fm); white-space:nowrap; }
 .pill-ref { background:var(--green-s); color:var(--green); border:1px solid rgba(79,209,160,0.2); }
@@ -584,8 +593,8 @@ body.fulfillment-mode #orderLedgerPanel #tabNav { display:none !important; }
     <div class="kpi"><div class="k-label">Distributor DP Required</div><div class="k-value mono" id="kpiDistDP">₱0.00</div><div class="k-hint">∑ (Cost × 30%) × Qty ordered, <strong>client orders only</strong></div></div>
     <div class="kpi"><div class="k-label">Public DP Collected</div><div class="k-value mono kpi-gold" id="kpiPubDP">₱0.00</div><div class="k-hint">Paid by clients only — in-store stock is tracked separately</div></div>
     <div class="kpi"><div class="k-label">In-Store Stock DP</div><div class="k-value mono" id="kpiStoreDP">₱0.00</div><div class="k-hint" id="kpiStoreDPHint">Store orders — not part of public DP</div></div>
-    <div class="kpi"><div class="k-label">Float Still Free</div><div class="k-value mono kpi-pos" id="kpiFloatFree">₱0.00</div><div class="k-hint">Float at current allocation − float tied up in store stock</div></div>
-    <div class="kpi"><div class="k-label">Cash To Front</div><div class="k-value mono kpi-pos" id="kpiPocket">₱0.00</div><div class="k-hint" id="kpiPocketHint">Cash needed before client pickups</div></div>
+    <div class="kpi"><div class="k-label">Profit Left After Stock</div><div class="k-value mono kpi-pos" id="kpiFloatFree">₱0.00</div><div class="k-hint" id="kpiLeftHint">Pre-order profit − cost of store stock</div></div>
+    <div class="kpi"><div class="k-label">Cash To Front</div><div class="k-value mono kpi-pos" id="kpiPocket">₱0.00</div><div class="k-hint" id="kpiPocketHint">Most cash you’ll need on hand at any point</div></div>
   </section>
 
   <div class="panel" data-panel="float">
@@ -1318,25 +1327,27 @@ function storeExposureData(aqOf, wholeFrac) {
   aqOf=aqOf||allocQty;   /* pass a different allocation function to ask "what if allocation were X%?" */
   /* wholeFrac (0–1), What-If only: treat that share of client ORDERS as filled in full and the rest as zero (instead of an even slice on every order) */
   const act=state.orders.filter(o=>isOrderInScope(o) && getItem(o.itemId));
-  let F=0,K=0,Kback=0,DRc=0,SM=0,P=0,P100=0,Cs=0,V=0,stockUnits=0;
+  let F=0,Dc=0,paidC=0,Kf=0,Kp=0,P=0,P100=0,CsF=0,CsP=0,VF=0,VP=0,unitsF=0,unitsP=0;
   let owned=0,collect=0,owned100=0,paidSum=0,bal100=0,uOrd=0,uAlloc=0;
-  const byClient={}, byItem={}, fd={};
+  const byClient={}, byItem={}, sd={};
   act.forEach(o=>{
-    const item=getItem(o.itemId), cost=Number(item.costPrice)||0, qty=Number(o.qtyOrdered)||0, aq=aqOf(o), paid=Number(o.amountPaid)||0;
+    const item=getItem(o.itemId), cost=Number(item.costPrice)||0, srp=Number(item.srp)||0, qty=Number(o.qtyOrdered)||0, aq=aqOf(o), paid=Number(o.amountPaid)||0;
     (byItem[o.itemId]=byItem[o.itemId]||[]).push(o);
     if(o.storeInventory){
-      if(o.fundedByFloat){ K+=paid; Cs+=aq*cost; V+=aq*(Number(item.srp)||0); stockUnits+=aq;
-        const d=(fd[o.itemId]=fd[o.itemId]||{item,qty:0,aq:0,K:0,Cs:0,V:0,Kback:0,SM:0,orders:0}); d.qty+=qty; d.aq+=aq; d.K+=paid; d.Cs+=aq*cost; d.V+=aq*(Number(item.srp)||0); d.orders++; }
+      /* store stock: 'float' = DP paid out of floating capital, 'pocket' = DP paid from the store's own cash */
+      const kind=o.fundedByFloat?'float':'pocket';
+      if(kind==='float'){ Kf+=paid; CsF+=aq*cost; VF+=aq*srp; unitsF+=aq; } else { Kp+=paid; CsP+=aq*cost; VP+=aq*srp; unitsP+=aq; }
+      const d=(sd[o.itemId+'|'+kind]=sd[o.itemId+'|'+kind]||{item,kind,qty:0,aq:0,K:0,Cs:0,V:0,Kback:0,SM:0,orders:0});
+      d.qty+=qty; d.aq+=aq; d.K+=paid; d.Cs+=aq*cost; d.V+=aq*srp; d.orders++;
       return;
     }
     const price=dpPrice(o), Va=aq*price, prof=aq*(price-cost), share=Va>0.005?Math.min(1,paid/Va):0;
-    F+=paid-cost*0.30*qty;                                  /* float if EVERY unit were allocated */
+    F+=paid-cost*0.30*qty; Dc+=cost*0.30*qty; paidC+=paid;  /* float if EVERY unit were allocated · DP we send to the distributor · DP clients paid */
     byClient[o.clientName]=(byClient[o.clientName]||0)+(paid-aq*price);
     P+=prof; P100+=qty*(price-cost);                        /* profit at this allocation / at 100% */
     uOrd+=qty; uAlloc+=aq;
     /* The float that becomes YOURS: each allocated order's profit counts as collected in proportion to how much of its
-       price the client's DP already covers. A fully-allocated order has paid 30% of its price → 30% of its profit is
-       in hand, 70% arrives at pickup. If the DP covers the whole allocated amount (small slice) → all of it is in hand.
+       price the client's DP already covers (30% for a fully-allocated order, 100% when a small slice is fully covered).
        Unallocated orders: DP is refunded, none of it is yours. */
     owned+=prof>0?prof*share:prof; collect+=prof>0?prof*(1-share):0;
     const prof100=qty*(price-cost), Va100=qty*price, sh100=Va100>0.005?Math.min(1,paid/Va100):0;
@@ -1345,37 +1356,48 @@ function storeExposureData(aqOf, wholeFrac) {
   let Rg=0,balances=0;
   Object.values(byClient).forEach(n=>{ if(n>0.005) Rg+=n; else if(n<-0.005) balances+=-n; });
   if(wholeFrac!=null){ P=wholeFrac*P100; owned=wholeFrac*owned100; collect=Math.max(0,P-owned); Rg=(1-wholeFrac)*paidSum; balances=wholeFrac*bal100; uAlloc=wholeFrac*uOrd; }
+  /* The distributor settles per ITEM: DP held − cost of what's allocated (all orders together). Positive = refund to us,
+     negative = balance we owe. Shares are split back onto client / float stock / own-pocket stock orders. */
+  let DRtot=0,DRc=0,KbackF=0,KbackP=0,SMtot=0,SMc=0,SMf=0,SMp=0;
   Object.keys(byItem).forEach(id=>{
     const item=getItem(id), cost=Number(item.costPrice)||0;
     const g={client:0,fund:0,pocket:0};
     byItem[id].forEach(o=>{
       const k=o.storeInventory?(o.fundedByFloat?'fund':'pocket'):'client';
-      g[k]+=cost*0.30*(Number(o.qtyOrdered)||0)-cost*aqOf(o);
+      const dp=o.storeInventory?(Number(o.amountPaid)||0):cost*0.30*(Number(o.qtyOrdered)||0);
+      g[k]+=dp-cost*aqOf(o);
     });
-    const total=g.client+g.fund+g.pocket; let kbi=0, smi=0;
+    const total=g.client+g.fund+g.pocket; let kf=0,kp=0,sf=0,sp=0;
     if(total>0.005){
       const pos=Math.max(0,g.client)+Math.max(0,g.fund)+Math.max(0,g.pocket);
-      if(pos>0){ DRc+=total*Math.max(0,g.client)/pos; kbi=total*Math.max(0,g.fund)/pos; Kback+=kbi; }
+      if(pos>0){ const dc=total*Math.max(0,g.client)/pos; kf=total*Math.max(0,g.fund)/pos; kp=total*Math.max(0,g.pocket)/pos; DRtot+=total; DRc+=dc; KbackF+=kf; KbackP+=kp; }
     } else if(total<-0.005){
-      const neg=Math.max(0,-g.client)+Math.max(0,-g.fund)+Math.max(0,-g.pocket);
-      if(neg>0){ smi=(-total)*Math.max(0,-g.fund)/neg; SM+=smi; }
+      const neg=Math.max(0,-g.client)+Math.max(0,-g.fund)+Math.max(0,-g.pocket), owe=-total;
+      if(neg>0){ const sc=owe*Math.max(0,-g.client)/neg; sf=owe*Math.max(0,-g.fund)/neg; sp=owe*Math.max(0,-g.pocket)/neg; SMtot+=owe; SMc+=sc; SMf+=sf; SMp+=sp; }
     }
-    if(fd[id]){ fd[id].Kback=kbi; fd[id].SM=smi; }
+    if(sd[id+'|float']){ sd[id+'|float'].Kback=kf; sd[id+'|float'].SM=sf; }
+    if(sd[id+'|pocket']){ sd[id+'|pocket'].Kback=kp; sd[id+'|pocket'].SM=sp; }
   });
-  /* fNow = the floating capital that is really YOURS at this allocation (see "owned" above). The rest of the original
-     float (F − fNow) is not yours: it goes back to clients inside the refunds on unallocated units. */
+  /* fNow = the floating capital that is really YOURS at this allocation. The rest of the original float (F − fNow)
+     goes back to clients inside the refunds on unallocated units. */
   const fNow=owned;
   const inHand=Math.max(0,Math.min(fNow,Math.max(P,0))), toCollect=collect;
-  const floatAfter=fNow-K+Kback;
-  const outOfPocket=Math.max(0,SM-floatAfter);
-  const hasFunded=act.some(o=>o.storeInventory&&o.fundedByFloat);
-  const stuck=K-Kback;
-  /* bar: spend the float at current allocation category by category; whatever it can't cover is the store's own cash */
-  let remain=Math.max(0,fNow); const segs=[]; let over=0;
-  [['stuck','Stays in store stock',Math.max(0,stuck)],['bal','Stock balance due',Math.max(0,SM)]].forEach(([key,label,amt])=>{
-    const take=Math.min(amt,remain); remain-=take; over+=amt-take; segs.push({key,label,amt:take});
-  });
-  return {uOrd,uAlloc,P,P100,Cs,V,stockUnits,F,fNow,inHand,toCollect,K,Kback,DRc,Rg,balances,SM,floatAfter,outOfPocket,hasFunded,stuck,segs,free:remain,over,stockItems:Object.values(fd).sort((a,b)=>b.Cs-a.Cs),
+  const floatAfter=fNow-Kf+KbackF, stuck=Kf-KbackF;
+  /* MONEY IN & OUT — running cash balance, step by step, ending exactly at (pre-order profit − all stock cost):
+       1. client DPs in · DPs out to the distributor (client units + float stock + own-pocket stock)
+       2. allocation known · distributor refunds in · client refunds out
+       3. stock arrives · we pay the distributor's balance
+       4. clients pay their balance at pickup */
+  const B1=paidC-Dc-Kf-Kp, B2=B1+DRtot-Rg, B3=B2-SMtot, B4=B3+balances;
+  const bals=[B1,B2,B3,B4], trough=Math.min(...bals), troughStep=bals.indexOf(trough)+1;
+  const cashNeed=Math.max(0,-trough);
+  const hasFunded=act.some(o=>o.storeInventory&&o.fundedByFloat), hasStock=act.some(o=>o.storeInventory);
+  return {uOrd,uAlloc,P,P100,F,fNow,inHand,toCollect,Rg,balances,
+          Cs:CsF+CsP,CsF,CsP,V:VF+VP,VF,VP,stockUnits:unitsF+unitsP,unitsF,unitsP,
+          K:Kf,Kf,Kp,Kback:KbackF,KbackP,DRc,DRtot,SM:SMf,SMf,SMp,SMc,SMtot,
+          Dc,paidC,B1,B2,B3,B4,trough,troughStep,cashNeed,outOfPocket:cashNeed,
+          floatAfter,stuck,hasFunded,hasStock,
+          stockItems:Object.values(sd).sort((a,b)=>(a.kind===b.kind?0:a.kind==='float'?-1:1)||b.Cs-a.Cs),
           leftOut:state.items.filter(i=>itemStatus(i)!=='active'&&itemOrders(i.id).length).length};
 }
 
@@ -1432,13 +1454,14 @@ function renderDash() {
   $e('kpiDistDP').textContent=php(m.distDP); $e('kpiPubDP').textContent=php(m.pubDP);
   $e('kpiStoreDP').textContent=php(m.storeDP);
   $e('kpiStoreDPHint').innerHTML=m.storeDP>0?`💰 Float-funded ${php(m.storeFloatDP)} · 🏪 Own pocket ${php(m.storePocketDP)}`:'Store orders — not part of public DP';
-  const pool=floatPoolData(x), ff=$e('kpiFloatFree');
-  ff.textContent=php(pool.available); ff.className='k-value mono '+(pool.available>=0?'kpi-pos':'kpi-neg');
+  const left=x.P-x.Cs, ff=$e('kpiFloatFree');
+  ff.textContent=(left<0?'−':'')+php(Math.abs(left)); ff.className='k-value mono '+(left>=0?'kpi-pos':'kpi-neg');
+  $e('kpiLeftHint').textContent=x.hasStock?`Pre-order profit ${php(x.P)} − stock ${php(x.Cs)} (worth ~${php(x.V)} at SRP)`:'Pre-order profit — no store stock ordered';
   const pe=$e('kpiPocket');
-  pe.textContent=php(x.outOfPocket); pe.className='k-value mono '+(x.outOfPocket>0.005?'kpi-neg':'kpi-pos');
-  $e('kpiPocketHint').textContent=!x.hasFunded?'No float-funded store stock'
-    :x.outOfPocket>0.005?(x.P-x.Cs>=0?`Temporary — pre-order profit (${php(x.P)}) pays the stock back`:`Real cost: ${php(x.Cs-x.P)} of the stock isn’t covered by profit`)
-    :`Float covers it all · ${php(x.floatAfter-x.SM)} left over`;
+  pe.textContent=php(x.cashNeed); pe.className='k-value mono '+(x.cashNeed>0.005?'kpi-neg':'kpi-pos');
+  $e('kpiPocketHint').textContent=x.cashNeed>0.005
+    ?`Lowest cash point (after step ${x.troughStep} of Money In & Out)${x.B4<0?' — part stays in stock':' — comes back at pickup'}`
+    :'Cash never dips below zero';
 }
 
 /* ── RENDER: FLOATING CAPITAL BREAKDOWN ───────────
@@ -1477,12 +1500,13 @@ function renderProfitTracker(x) {
 }
 function renderStockTable(x) {
   if(!x.stockItems.length) return '';
-  let rows='', tAq=0,tQty=0,tCs=0,tK=0,tKb=0,tSM=0,tV=0;
+  let rows='', t={qty:0,aq:0,Cs:0,K:0,Kb:0,SM:0,V:0};
   x.stockItems.forEach(d=>{
     const it=d.item, cost=Number(it.costPrice)||0, srp=Number(it.srp)||0, profit=d.V-d.Cs;
-    tAq+=d.aq; tQty+=d.qty; tCs+=d.Cs; tK+=d.K; tKb+=d.Kback; tSM+=d.SM; tV+=d.V;
+    t.qty+=d.qty; t.aq+=d.aq; t.Cs+=d.Cs; t.K+=d.K; t.Kb+=d.Kback; t.SM+=d.SM; t.V+=d.V;
     rows+=`<tr>
       <td><div class="td-bold">${esc(it.name)}</div><div class="td-dim" style="font-size:11px">${it.eta?'ETA '+esc(it.eta)+' · ':''}${d.orders} order${d.orders===1?'':'s'}</div></td>
+      <td>${d.kind==='float'?'<span class="pill pill-ok">💰 Float</span>':'<span class="pill pill-bal">🏪 Own pocket</span>'}</td>
       <td class="td-c mono">${d.qty} → <strong>${d.aq}</strong></td>
       <td class="td-r mono">${php(cost)}</td>
       <td class="td-r mono td-bold">${php(d.Cs)}</td>
@@ -1493,31 +1517,68 @@ function renderStockTable(x) {
     </tr>`;
   });
   return `<div class="tbl-wrap" style="margin-top:14px"><table class="item-tbl"><thead><tr>
-    <th>Product</th><th class="c" title="Quantity ordered → quantity allocated">Ordered → Allocated</th><th class="r">Cost / unit</th><th class="r" title="Allocated qty × cost price — the real price of this stock">Allocated cost</th><th class="r" title="DP you paid for it out of floating capital">DP paid (float)</th><th class="r" title="Balance you still owe the distributor for the allocated units">Still due to distributor</th><th class="r">Sells for (SRP)</th><th class="r" title="Total SRP value of allocated units minus their cost">Profit when sold</th>
+    <th>Product</th><th>Paid with</th><th class="c" title="Quantity ordered → quantity allocated">Ordered → Allocated</th><th class="r">Cost / unit</th><th class="r" title="Allocated qty × cost price — the real price of this stock">Allocated cost</th><th class="r" title="DP sent to the distributor for it">DP paid</th><th class="r" title="Balance you still owe the distributor for the allocated units">Still due to distributor</th><th class="r">Sells for (SRP)</th><th class="r" title="SRP value of the allocated units minus their cost">Profit when sold</th>
   </tr></thead><tbody>${rows}</tbody>
-  <tfoot><tr class="fcb-totals-row"><td class="td-bold">Total</td><td class="td-c mono">${tQty} → <strong>${tAq}</strong></td><td></td><td class="td-r mono td-bold">${php(tCs)}</td><td class="td-r mono">${php(tK)}${tKb>0.005?`<div class="kpi-pos" style="font-size:10.5px">${php(tKb)} comes back</div>`:''}</td><td class="td-r mono">${tSM>0.005?php(tSM):'—'}</td><td class="td-r mono">${php(tV)}</td><td class="td-r mono ${tV-tCs>=0?'kpi-pos':'kpi-neg'}">${php(tV-tCs)}</td></tr></tfoot></table></div>`;
+  <tfoot><tr class="fcb-totals-row"><td class="td-bold">Total</td><td></td><td class="td-c mono">${t.qty} → <strong>${t.aq}</strong></td><td></td><td class="td-r mono td-bold">${php(t.Cs)}</td><td class="td-r mono">${php(t.K)}${t.Kb>0.005?`<div class="kpi-pos" style="font-size:10.5px">${php(t.Kb)} comes back</div>`:''}</td><td class="td-r mono">${t.SM>0.005?php(t.SM):'—'}</td><td class="td-r mono">${php(t.V)}</td><td class="td-r mono ${t.V-t.Cs>=0?'kpi-pos':'kpi-neg'}">${php(t.V-t.Cs)}</td></tr></tfoot></table></div>`;
 }
+/* BOTTOM LINE: pre-order profit pays for the stock you ordered (float-funded AND own-pocket); what's left is cash profit,
+   and the stock itself is inventory worth more than it cost — so it's an asset swap, not a loss. */
 function renderStockGlance(x) {
-  if(!x.hasFunded) return '';
-  const covered=Math.min(Math.max(0,x.P),x.Cs), pocket=Math.max(0,x.Cs-x.P);
-  const tile=(cls,label,val,sub)=>`<div class="eq-box ${cls}"><div class="eq-label">${label}</div><div class="eq-val mono">${val}</div><div class="eq-sub">${sub}</div></div>`;
-  let h=`<div class="fcb-section-head">Store Stock Bought With Float<span class="fcb-section-sub">What it costs you once allocation is out</span></div>
+  if(!x.hasStock) return '';
+  const P=Math.max(0,x.P), cashLeft=x.P-x.Cs, stockProfit=x.V-x.Cs, total=x.P+stockProfit;
+  const box=(cls,label,val,sub)=>`<div class="eq-box ${cls}"><div class="eq-label">${label}</div><div class="eq-val mono">${val}</div><div class="eq-sub">${sub}</div></div>`;
+  const op=t=>`<div class="eq-op">${t}</div>`;
+  let h=`<div class="fcb-section-head">Your Bottom Line<span class="fcb-section-sub">Everything settled: clients paid or refunded, distributor paid · stock counted at cost</span></div>
   <div class="eq-chain">
-    ${tile('',`Stock you’ll get`,x.stockUnits+' units',x.stockItems.length+' product'+(x.stockItems.length===1?'':'s')+' · cost '+php(x.Cs)+' · worth ~'+php(x.V)+' at SRP')}
-    ${tile('eq-pos','Your pre-order profit pays',php(covered),'of the '+php(x.Cs)+' stock cost')}
-    ${tile(pocket>0.005?'eq-neg':'eq-pos','Left to pay from your pocket',php(pocket),pocket>0.005?'the profit can’t cover it':'nothing — fully covered')}
-    ${tile(x.outOfPocket>0.005?'eq-gold':'eq-pos','Cash to front before pickups',php(x.outOfPocket),x.outOfPocket>0.005?(pocket>0.005?'part of this is a real cost':'temporary — comes back at pickup'):'float covers it')}
-  </div>
-  ${renderStockTable(x)}
-  <div class="eq-rule">${pocket>0.005
-    ?`Your pre-order profit (${php(x.P)}) can’t fully pay for the stock (${php(x.Cs)}), so <strong>${php(pocket)}</strong> really comes from the store.`
-    :`Your pre-order profit pays for all the stock and you keep <strong>${php(x.P-x.Cs)}</strong> in cash profit. The stock then sells for about ${php(x.V)} at SRP, adding roughly ${php(x.V-x.Cs)} more.`}</div>`;
+    ${box('eq-pos','Pre-order profit',php(x.P),'on the units allocated to clients')}${op('−')}
+    ${box('','Stock you ordered',php(x.Cs),'💰 '+php(x.CsF)+' float-funded · 🏪 '+php(x.CsP)+' own pocket')}${op('=')}
+    ${box(cashLeft>=0?'eq-pos':'eq-gold','Cash profit left',(cashLeft<0?'−':'')+php(Math.abs(cashLeft)),cashLeft>=0?'kept after paying for all the stock':'cash tied up in stock, not lost')}${op('+')}
+    ${box(stockProfit>=0?'eq-pos':'eq-neg','Stock profit when sold',php(stockProfit),x.stockUnits+' units worth ~'+php(x.V)+' at SRP')}${op('=')}
+    ${box('eq-total','Total earnings',php(total),'once all the stock is sold')}
+  </div>`;
+  /* what the pre-order profit pays for */
+  const payF=Math.min(P,x.CsF), payP=Math.min(P-payF,x.CsP), left=P-payF-payP, short=(x.CsF-payF)+(x.CsP-payP);
+  const tot=payF+payP+left+short;
+  if(tot>0.005){
+    const pc=v=>(v/tot*100).toFixed(2)+'%', seg=(c,v,t)=>v>0.005?`<div class="xp-seg ${c}" style="width:${pc(v)}" title="${t}: ${php(v)}"></div>`:'';
+    const lg=(c,l,v)=>v>0.005?`<span class="xp-lg"><i class="${c}"></i>${l} <b class="mono">${php(v)}</b></span>`:'';
+    h+=`<div class="xp-bar-wrap" style="margin-top:12px"><div class="xp-bar-cap">What your ${php(x.P)} pre-order profit pays for</div>
+      <div class="xp-bar">${seg('xp-stuck',payF,'Float-funded stock')}${seg('xp-bal',payP,'Own-pocket stock')}${seg('xp-free',left,'Cash profit left')}${seg('xp-over',short,'Stock the profit can’t cover')}</div>
+      <div class="xp-legend">${lg('xp-stuck','💰 Float-funded stock',payF)}${lg('xp-bal','🏪 Own-pocket stock',payP)}${lg('xp-free','Cash profit left',left)}${lg('xp-over','Stock the profit can’t cover (your cash)',short)}</div></div>`;
+  }
+  h+=`<div class="eq-rule">${cashLeft>=0
+    ?`After paying for all your stock you still keep <strong>${php(cashLeft)}</strong> in cash, and you own ${x.stockUnits} units worth about ${php(x.V)} — roughly ${php(stockProfit)} more profit when they sell.`
+    :`Your pre-order profit (${php(x.P)}) is used up by the stock, and <strong>${php(-cashLeft)}</strong> of your own cash goes in on top. It isn’t lost: it’s sitting in ${x.stockUnits} units worth ~${php(x.V)} at SRP, so you earn ${php(stockProfit)} more as they sell — <strong>${php(total)}</strong> in total.`}</div>`;
+  h+=`<div class="fcb-section-head">Stock You Ordered<span class="fcb-section-sub">Product by product · 💰 paid with floating capital · 🏪 paid from your own pocket</span></div>`+renderStockTable(x);
   return h;
+}
+/* MONEY IN & OUT: the same story as the bottom line, but as a timeline, so the pass-through money is visible. */
+function renderMoneyFlow(x) {
+  if(x.paidC<=0.005&&!x.hasStock) return '';
+  const bals=[x.B1,x.B2,x.B3,x.B4], maxAbs=Math.max(1,...bals.map(Math.abs));
+  const bar=b=>`<div class="mf-bar"><div class="mf-fill ${b>=0?'pos':'neg'}" style="width:${(Math.abs(b)/maxAbs*100).toFixed(1)}%"></div></div>`;
+  const bal=b=>`${b<0?'−':''}${php(Math.abs(b))}`;
+  const main=(n,title,inn,out,b)=>`<tr class="mf-main"><td><span class="mf-n">${n}</span>${title}</td><td class="td-r mono kpi-pos">${inn>0.005?'+'+php(inn):'—'}</td><td class="td-r mono kpi-neg">${out>0.005?'−'+php(out):'—'}</td><td class="td-r mono td-bold ${b<0?'kpi-neg':''}">${bal(b)}</td><td>${bar(b)}</td></tr>`;
+  const sub=(label,out)=>out>0.005?`<tr class="mf-sub"><td>${label}</td><td></td><td class="td-r mono">−${php(out)}</td><td></td><td></td></tr>`:'';
+  let rows=main(1,'Clients’ DPs come in · DPs go out to the distributor',x.paidC,x.Dc+x.Kf+x.Kp,x.B1)
+    +sub('for client orders',x.Dc)+sub('for stock paid with floating capital',x.Kf)+sub('for stock paid from your own pocket',x.Kp)
+    +main(2,'Allocation is known: refunds',x.DRtot,x.Rg,x.B2)
+    +`<tr class="mf-sub"><td colspan="5">distributor refunds the DP on units it didn’t allocate · you refund clients for theirs</td></tr>`
+    +main(3,'Stock arrives: you pay the distributor’s balance',0,x.SMtot,x.B3)
+    +sub('for client orders',x.SMc)+sub('for stock paid with floating capital',x.SMf)+sub('for stock paid from your own pocket',x.SMp)
+    +main(4,'Clients pay their balance at pickup',x.balances,0,x.B4);
+  const finish=x.B4>=0?`you finish with <strong>${php(x.B4)}</strong>`:`you finish ${php(-x.B4)} down in cash — that’s your stock (worth ~${php(x.V)}), not a loss`;
+  const callout=x.cashNeed>0.005
+    ?`<strong>Lowest point: ${php(x.cashNeed)} short after step ${x.troughStep}</strong> — that’s the most cash you’ll need on hand at any one time. ${x.troughStep<4?'Clients’ pickup balances in step 4 bring you back up, and ':'And '}${finish}.`
+    :`Your cash never dips below zero — the float covers every step, and ${finish}.`;
+  return `<div class="fcb-section-head">Money In &amp; Out<span class="fcb-section-sub">Most of the money moving through is clients’ or the distributor’s — only the last balance is yours</span></div>
+  <div class="tbl-wrap"><table class="item-tbl mf-tbl"><thead><tr><th>Step</th><th class="r">Money in</th><th class="r">Money out</th><th class="r">Cash balance after</th><th style="width:22%"></th></tr></thead><tbody>${rows}</tbody></table></div>
+  <div class="eq-rule">${callout}</div>`;
 }
 const SCENARIO_PCTS=[100,75,50,30,20,10,5];
 function renderScenarioTable(cur) {
   if(cur.P100<=0.005&&cur.F===0) return '';
-  const showStock=cur.hasFunded, mode=ui.scenarioMode==='even'?'even':'whole';
+  const showStock=cur.hasStock, mode=ui.scenarioMode==='even'?'even':'whole';
   const mk=(label,x,isCur)=>`<tr${isCur?' class="row-current"':''}>
     <td class="td-bold">${label}</td>
     <td class="td-r mono">${php(x.P)}</td>
@@ -1531,98 +1592,17 @@ function renderScenarioTable(cur) {
   const tg=(m,l)=>`<button type="button" class="lt-btn${mode===m?' active':''}" data-a="set-scenario-mode" data-mode="${m}">${l}</button>`;
   return `<div class="fcb-section-head">What If Allocation Is…<span class="fcb-section-sub">Compare before the real allocation is out · active items only</span></div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px">${tg('whole','Whole orders filled (30% DP / 70% balance)')}${tg('even','Even slice on every order')}</div>
-  <div class="tbl-wrap"><table class="item-tbl"><thead><tr><th>Allocation</th><th class="r">Pre-order profit</th><th class="r" title="Floating capital that is really yours at this allocation — the profit your clients' DPs already cover">Float that's yours</th><th class="r">Still to collect at pickup</th><th class="r">Client refunds</th>${showStock?'<th class="r" title="Pre-order profit minus the cost of the float-funded stock you get">Left after float-funded stock</th><th class="r" title="Cash needed before client pickups">Cash to front</th>':''}</tr></thead><tbody>${rows}</tbody></table></div>
+  <div class="tbl-wrap"><table class="item-tbl"><thead><tr><th>Allocation</th><th class="r">Pre-order profit</th><th class="r" title="Floating capital that is really yours at this allocation — the profit your clients' DPs already cover">Float that's yours</th><th class="r">Still to collect at pickup</th><th class="r">Client refunds</th>${showStock?'<th class="r" title="Pre-order profit minus the cost of all the store stock you ordered (float-funded and own pocket)">Cash profit left after stock</th><th class="r" title="The lowest your cash balance gets in the Money In &amp; Out timeline">Cash needed (lowest point)</th>':''}</tr></thead><tbody>${rows}</tbody></table></div>
   <div style="font-size:11.5px;color:var(--text-d);margin-top:8px;line-height:1.5">${mode==='whole'
     ?'<strong>Whole orders filled:</strong> some clients get their full order, the rest get nothing (raffle, first come). Every allocated order has paid exactly its 30% DP, so about 30% of its profit is already yours and 70% arrives at pickup; unallocated clients are refunded their whole DP.'
     :'<strong>Even slice:</strong> every client gets the same % of their order, so their DP often covers the whole allocated amount and most of the profit is already in hand.'}
     “Current settings” follows what you actually entered — an item’s allocation % spreads evenly over its orders, so use the raffle or a per-order override to allocate whole orders.</div>`;
 }
-function renderProfitFlowBlock(x) {
-  const covered=Math.min(Math.max(0,x.P),x.Cs), kept=Math.max(0,x.P-x.Cs), pocket=Math.max(0,x.Cs-x.P);
-  const stockProfit=x.V-x.Cs, total=x.P+stockProfit;
-  const tot=covered+kept+pocket;
-  let h=`<div class="fcb-section-head">Where Your Pre-Order Profit Goes<span class="fcb-section-sub">The final picture once every client has paid or been refunded — separate from the cash-timing view below</span></div>`;
-  if(tot>0.005){
-    const pc=v=>(v/tot*100).toFixed(2)+'%', seg=(c,v,t)=>v>0.005?`<div class="xp-seg ${c}" style="width:${pc(v)}" title="${t}: ${php(v)}"></div>`:'';
-    const lg=(c,l,v)=>v>0.005?`<span class="xp-lg"><i class="${c}"></i>${l} <b class="mono">${php(v)}</b></span>`:'';
-    h+=`<div class="pf-top"><div><div class="xp-hero-label">Pre-order profit (allocated units)</div><div class="pf-big mono ${x.P>=0?'kpi-pos':'kpi-neg'}">${php(x.P)}</div></div>
-      <div class="pf-arrow">→</div><div class="pf-top-note">pays for the stock you bought with floating capital (${php(x.Cs)} at cost), and whatever is left is yours</div></div>
-    <div class="xp-bar" style="margin-top:10px">${seg('xp-stuck',covered,'Pays for the float-funded stock')}${seg('xp-free',kept,'Profit you keep')}${seg('xp-over',pocket,'From your pocket')}</div>
-    <div class="xp-legend">${lg('xp-stuck','Pays for the stock',covered)}${lg('xp-free','Profit you keep',kept)}${lg('xp-over','Still from your pocket',pocket)}</div>`;
-  } else {
-    h+=`<div class="xp-hero-sub">No allocated pre-order profit yet — it appears once client orders have an allocation.</div>`;
-  }
-  h+=`<div class="pf-cards">
-    <div class="pf-card"><div class="xp-hero-label">Stock you'll own</div><div class="pf-num mono">${x.stockUnits}u</div><div class="pf-sub">cost ${php(x.Cs)} · paid by the profit above</div></div>
-    <div class="pf-card"><div class="xp-hero-label">Profit when it sells (at SRP)</div><div class="pf-num mono ${stockProfit>=0?'kpi-pos':'kpi-neg'}">${php(stockProfit)}</div><div class="pf-sub">resale ${php(x.V)} − cost ${php(x.Cs)}</div></div>
-    <div class="pf-card pf-card-total"><div class="xp-hero-label">Total you earn once it's all sold</div><div class="pf-num mono ${total>=0?'kpi-pos':'kpi-neg'}">${php(total)}</div><div class="pf-sub">pre-order profit + stock profit</div></div>
-  </div>
-  <div style="font-size:11.5px;color:var(--text-d);margin-top:8px;line-height:1.5">Using the stock to “pay” with profit isn't a loss — you swap cash for goods that sell for more than they cost. Stock profit assumes selling at SRP; your real prices are in the Sales panel.${pocket>0.005?` The red part is the stock cost the pre-order profit can't cover, so that money really comes from the store.`:''}</div>`;
-  return h;
-}
-function renderExposureBlock() {
-  const x=storeExposureData();
-  let h=`<div class="fcb-section-head">After Allocation: Profit &amp; Cash Flow of Float-Funded Stock<span class="fcb-section-sub">Active items only · uses the current allocation %</span></div>`;
-  if(x.leftOut) h+=`<div class="status-banner delayed" style="margin:0 0 12px"><span>⏸ ${x.leftOut} Delayed/Served item${x.leftOut===1?'':'s'} left out of this projection.</span></div>`;
-  if(!x.hasFunded){
-    return h+`<div class="empty" style="padding:18px"><div class="empty-ico">🏪</div><strong>No store stock is funded by floating capital</strong><span>Tick “Funded by Floating Capital” on a Store Inventory order and this shows how much of your own cash it could cost once allocation is out.</span></div>`;
-  }
-  h+=renderProfitFlowBlock(x);
-  h+=`<div class="fcb-section-head" style="margin-top:24px">Cash Timing: What You Front Before Pickups<span class="fcb-section-sub">Refunds go out and the distributor needs its balance before clients pay theirs, so you may need cash on hand for a while</span></div>`;
-  const bad=x.outOfPocket>0.005, left=x.floatAfter-x.SM;
-  const gapRefund=Math.max(0,-x.floatAfter), gapStock=Math.max(0,x.SM-Math.max(0,x.floatAfter));
-  h+=`<div class="xp-hero ${bad?'bad':'ok'}">
-    <div class="xp-hero-main"><div class="xp-hero-label">${bad?'Cash you’ll need to front':'Float covers everything'}</div>
-    <div class="xp-hero-val mono">${bad?php(x.outOfPocket):php(left)}</div>
-    <div class="xp-hero-sub">${bad?('from the store’s own cash at the current allocation: '+[
-        gapRefund>0.005?`${php(gapRefund)} of client money already sits in store stock beyond the float that’s really yours`:'',
-        gapStock>0.005?`${php(gapStock)} balance to pay the distributor for the float-funded stock when it ships`:''].filter(Boolean).join(' + ')+'.')
-      :'still free after refunding clients and paying the distributor balance on float-funded stock.'}${bad&&x.toCollect>0.005?(x.P-x.Cs>=0?` This is timing: ${php(x.toCollect)} of your profit still comes in at pickup.`:` ${php(x.toCollect)} of profit comes in at pickup, but the stock still costs more than the pre-order profit (see above).`):''}</div></div></div>`;
-  const total=x.segs.reduce((t,g)=>t+g.amt,0)+x.free+x.over;
-  if(total>0.005){
-    const cls={stuck:'xp-stuck',refund:'xp-refund',bal:'xp-bal'};
-    const pct=v=>(v/total*100).toFixed(2)+'%';
-    let bar='', leg='';
-    x.segs.forEach(g=>{ if(g.amt>0.005){ bar+=`<div class="xp-seg ${cls[g.key]}" style="width:${pct(g.amt)}" title="${g.label}: ${php(g.amt)}"></div>`; }});
-    if(x.free>0.005) bar+=`<div class="xp-seg xp-free" style="width:${pct(x.free)}" title="Float left over: ${php(x.free)}"></div>`;
-    if(x.over>0.005) bar+=`<div class="xp-seg xp-over" style="width:${pct(x.over)}" title="From your pocket: ${php(x.over)}"></div>`;
-    const lg=(c,l,v)=>`<span class="xp-lg"><i class="${c}"></i>${l} <b class="mono">${php(v)}</b></span>`;
-    leg+=lg('xp-stuck','Stays in store stock',Math.max(0,x.stuck))+lg('xp-bal','Stock balance due to distributor',x.SM)
-        +(x.free>0.005?lg('xp-free','Float left over',x.free):'')+(x.over>0.005?lg('xp-over','From your pocket',x.over):'');
-    h+=`<div class="xp-bar-wrap"><div class="xp-bar-cap">Where your ${php(Math.max(0,x.fNow))} of floating capital (at current allocation) goes${x.over>0.005?' — red is the part it can’t cover':''}</div><div class="xp-bar">${bar}</div><div class="xp-legend">${leg}</div></div>`;
-  }
-  const row=(l,v,cls,sub)=>`<div class="fcb-row${sub?' fcb-sub':''}"><span class="fcb-label">${l}</span><span class="fcb-val ${cls||''}">${v}</span></div>`;
-  const sg=n=>Math.abs(n)<0.005?php(0):(n>=0?'+':'−')+php(Math.abs(n));
-  h+=`<div class="fcb-summary" style="margin-top:14px">
-    ${row('Floating capital if every unit were allocated',sg(x.F))}
-    ${row('Returned to clients with refunds on unallocated units',sg(-(x.F-x.fNow)),(x.F-x.fNow)>0.005?'kpi-neg':'',true)}
-    <div class="fcb-row fcb-total"><span class="fcb-label">Float that’s yours at current allocation</span><span class="fcb-val ${x.fNow>=0?'kpi-pos':'kpi-neg'}">${sg(x.fNow)}</span></div>
-    ${row('Spent on store-stock DPs (float-funded)',sg(-x.K),x.K>0.005?'kpi-neg':'')}
-    ${row('Distributor refunds back on that stock',sg(x.Kback),x.Kback>0.005?'kpi-pos':'',true)}
-    <div class="fcb-row fcb-total"><span class="fcb-label">Float left after store-stock DPs</span><span class="fcb-val ${x.floatAfter>=0?'kpi-pos':'kpi-neg'}">${sg(x.floatAfter)}</span></div>
-    ${row('Balance due to distributor for the float-funded stock',sg(-x.SM),x.SM>0.005?'kpi-neg':'')}
-    <div class="fcb-row fcb-total"><span class="fcb-label">${bad?'Out of your own pocket':'Float left over'}</span><span class="fcb-val ${bad?'kpi-neg':'kpi-pos'}">${bad?php(x.outOfPocket):php(left)}</span></div>
-  </div>
-  <div style="font-size:11.5px;color:var(--text-d);margin-top:8px;line-height:1.5">Not counted above: ${php(x.toCollect)} of your profit that arrives at pickup (the balance clients pay when they collect). Those pickups also cover the distributor’s balance on client orders.</div>`;
-  return h;
-}
 function renderFloatBreakdown() {
   const area=$e('floatBreakdownArea'); if(!area) return;
   const x=storeExposureData(), pool=floatPoolData(x);
-  const availCls=pool.available>=0?'kpi-pos':'kpi-neg';
-  const sgn=n=>Math.abs(n)<0.005?php(0):(n>=0?'+':'−')+php(Math.abs(n));
 
-  let html=`<div class="fcb-section-head">Floating Capital Pool<span class="fcb-section-sub">Active items · at the current allocation · money you don’t own goes back to clients with the refunds on unallocated units</span></div>
-  <div class="fcb-summary">
-    <div class="fcb-row"><span class="fcb-label">Floating capital if every unit were allocated</span><span class="fcb-val td-dim">${php(pool.totalFloat)}</span></div>
-    <div class="fcb-row fcb-sub"><span class="fcb-label">Less: returned to clients with refunds on unallocated units</span><span class="fcb-val ${pool.totalFloat-pool.floatNow>0.005?'kpi-neg':''}">${sgn(pool.floatNow-pool.totalFloat)}</span></div>
-    <div class="fcb-row"><span class="fcb-label"><strong>Floating capital that’s yours at current allocation</strong></span><span class="fcb-val">${php(pool.floatNow)}</span></div>
-    <div class="fcb-row"><span class="fcb-label">Committed to store purchases (float-funded DPs)</span><span class="fcb-val ${pool.committed>0.005?'kpi-neg':''}">${sgn(-pool.committed)}</span></div>
-    <div class="fcb-row fcb-sub"><span class="fcb-label">Distributor refunds back on that stock</span><span class="fcb-val ${pool.kback>0.005?'kpi-pos':''}">${sgn(pool.kback)}</span></div>
-    <div class="fcb-row fcb-total"><span class="fcb-label">Available (Uncommitted)</span><span class="fcb-val ${availCls}">${php(pool.available)}</span></div>
-  </div>`;
-
-  html+=renderExposureBlock();
+  let html=`<div class="fcb-section-head" style="margin-top:0">Orders Paid With Floating Capital<span class="fcb-section-sub">Order by order · DP paid vs the value of what was allocated</span></div>`;
 
   if(!pool.funded.length){
     html+=`<div class="empty"><div class="empty-ico">💰</div><strong>No float-funded orders yet</strong><span>Check "Funded by Floating Capital" on a Store Inventory order to track it here.</span></div>`;
@@ -1702,7 +1682,7 @@ function renderFloatBreakdown() {
       </tr></tfoot></table></div>`;
   }
   const tgl=(flag,a,label)=>`<button type="button" class="lt-btn${flag?' active':''}" data-a="${a}">${flag?'▾':'▸'} ${label}</button>`;
-  html=renderProfitTracker(x)+renderStockGlance(x)
+  html=renderProfitTracker(x)+renderStockGlance(x)+renderMoneyFlow(x)
     +`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 10px">${tgl(ui.showWhatIf,'toggle-whatif','What if allocation is…')}${tgl(ui.showFloatMath,'toggle-floatmath','Show the math &amp; order details')}</div>`
     +(ui.showWhatIf?renderScenarioTable(x):'')+(ui.showFloatMath?html:'');
   area.innerHTML=html;
