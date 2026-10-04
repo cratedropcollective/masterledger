@@ -342,6 +342,20 @@ tbody tr:hover td { background:rgba(124,111,247,0.05); }
 .xp-lg i.xp-stuck{background:var(--accent)} .xp-lg i.xp-refund{background:var(--amber)} .xp-lg i.xp-bal{background:var(--gold)} .xp-lg i.xp-free{background:var(--green)} .xp-lg i.xp-over{background:var(--red)}
 .xp-lg b { color:var(--text); font-weight:600; }
 
+/* ── AT-A-GLANCE EQUATION ─────────────────────── */
+.eq-chain { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; }
+.eq-box { flex:1 1 130px; min-width:120px; background:var(--surf-2); border:1px solid var(--border); border-radius:var(--r-s); padding:12px 14px; }
+.eq-label { font-size:10.5px; text-transform:uppercase; letter-spacing:0.06em; font-weight:700; color:var(--text-d); }
+.eq-val { font-family:var(--fd); font-size:21px; font-weight:700; margin:4px 0 2px; line-height:1.15; }
+.eq-sub { font-size:11px; color:var(--text-d); line-height:1.4; }
+.eq-op { align-self:center; font-size:20px; font-weight:700; color:var(--text-d); }
+.eq-pos { background:var(--green-s); border-color:rgba(79,209,160,0.35); } .eq-pos .eq-val { color:var(--green); }
+.eq-neg { background:var(--red-s); border-color:rgba(240,101,101,0.35); } .eq-neg .eq-val { color:var(--red); }
+.eq-gold { background:var(--amber-s); border-color:rgba(242,153,74,0.35); } .eq-gold .eq-val { color:var(--amber); }
+.eq-total { border-color:var(--accent); } .eq-total .eq-val { color:var(--text); }
+.eq-rule { margin-top:12px; font-size:12.5px; line-height:1.55; color:var(--text); }
+@media (max-width:700px) { .eq-op { display:none; } .eq-box { flex-basis:100%; } }
+
 /* ── PROFIT FLOW ───────────────────────────────── */
 .pf-top { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
 .pf-big { font-family:var(--fd); font-size:30px; font-weight:700; line-height:1.15; }
@@ -747,6 +761,8 @@ let ui = {
   showSessionPanel: false,
   sessionSearchQuery: '',     /* filter text typed into the session switcher's search box (only shown once there are several sessions) */
   sessionSortMode: 'recent',  /* 'recent' (last updated first, default) or 'alpha' (A–Z by name) — toggled in the session switcher */
+  showWhatIf: true,           /* Float panel: What-If table visible */
+  showFloatMath: false,       /* Float panel: pool, waterfall, order tables hidden until asked for ('Show the math') */
   scenarioMode: 'whole',      /* What-If table: 'whole' = allocated orders filled in full (30% DP / 70% balance), 'even' = same % slice on every order */
   showHiddenItems: false,     /* true = Client Overview also lists orders of Delayed/Served items (dimmed, not counted in totals) */
   workspaceView: 'all'        /* 'all' (default full scrolling view) or one of PANEL_KEYS to show only that section as a focused single-panel view */
@@ -1296,7 +1312,7 @@ function storeExposureData(aqOf, wholeFrac) {
   /* wholeFrac (0–1), What-If only: treat that share of client ORDERS as filled in full and the rest as zero (instead of an even slice on every order) */
   const act=state.orders.filter(o=>isOrderInScope(o) && getItem(o.itemId));
   let F=0,K=0,Kback=0,DRc=0,SM=0,P=0,P100=0,Cs=0,V=0,stockUnits=0;
-  let owned=0,collect=0,owned100=0,paidSum=0,bal100=0;
+  let owned=0,collect=0,owned100=0,paidSum=0,bal100=0,uOrd=0,uAlloc=0;
   const byClient={}, byItem={};
   act.forEach(o=>{
     const item=getItem(o.itemId), cost=Number(item.costPrice)||0, qty=Number(o.qtyOrdered)||0, aq=aqOf(o), paid=Number(o.amountPaid)||0;
@@ -1309,6 +1325,7 @@ function storeExposureData(aqOf, wholeFrac) {
     F+=paid-cost*0.30*qty;                                  /* float if EVERY unit were allocated */
     byClient[o.clientName]=(byClient[o.clientName]||0)+(paid-aq*price);
     P+=prof; P100+=qty*(price-cost);                        /* profit at this allocation / at 100% */
+    uOrd+=qty; uAlloc+=aq;
     /* The float that becomes YOURS: each allocated order's profit counts as collected in proportion to how much of its
        price the client's DP already covers. A fully-allocated order has paid 30% of its price → 30% of its profit is
        in hand, 70% arrives at pickup. If the DP covers the whole allocated amount (small slice) → all of it is in hand.
@@ -1319,7 +1336,7 @@ function storeExposureData(aqOf, wholeFrac) {
   });
   let Rg=0,balances=0;
   Object.values(byClient).forEach(n=>{ if(n>0.005) Rg+=n; else if(n<-0.005) balances+=-n; });
-  if(wholeFrac!=null){ P=wholeFrac*P100; owned=wholeFrac*owned100; collect=Math.max(0,P-owned); Rg=(1-wholeFrac)*paidSum; balances=wholeFrac*bal100; }
+  if(wholeFrac!=null){ P=wholeFrac*P100; owned=wholeFrac*owned100; collect=Math.max(0,P-owned); Rg=(1-wholeFrac)*paidSum; balances=wholeFrac*bal100; uAlloc=wholeFrac*uOrd; }
   Object.keys(byItem).forEach(id=>{
     const item=getItem(id), cost=Number(item.costPrice)||0;
     const g={client:0,fund:0,pocket:0};
@@ -1349,7 +1366,7 @@ function storeExposureData(aqOf, wholeFrac) {
   [['stuck','Stays in store stock',Math.max(0,stuck)],['bal','Stock balance due',Math.max(0,SM)]].forEach(([key,label,amt])=>{
     const take=Math.min(amt,remain); remain-=take; over+=amt-take; segs.push({key,label,amt:take});
   });
-  return {P,P100,Cs,V,stockUnits,F,fNow,inHand,toCollect,K,Kback,DRc,Rg,balances,SM,floatAfter,outOfPocket,hasFunded,stuck,segs,free:remain,over,
+  return {uOrd,uAlloc,P,P100,Cs,V,stockUnits,F,fNow,inHand,toCollect,K,Kback,DRc,Rg,balances,SM,floatAfter,outOfPocket,hasFunded,stuck,segs,free:remain,over,
           leftOut:state.items.filter(i=>itemStatus(i)!=='active'&&itemOrders(i.id).length).length};
 }
 
@@ -1422,21 +1439,47 @@ function renderDash() {
       refund/balance, side by side, so the markup gap is visible instead
       of confusing. Recalculates live as part of renderAll(). */
 function renderProfitTracker(x) {
-  let h=`<div class="fcb-section-head" style="margin-top:0;padding-top:0;border-top:none">Profit at Current Allocation<span class="fcb-section-sub">Pre-order profit on the units actually allocated to clients — how much is already in your hands and how much arrives at pickup</span></div>`;
+  let h=`<div class="fcb-section-head" style="margin-top:0;padding-top:0;border-top:none">Where Your Money Stands<span class="fcb-section-sub">Active items · at the current allocation</span></div>`;
   if(x.P100<=0.005&&x.F===0){
     return h+`<div class="empty" style="padding:18px"><div class="empty-ico">📈</div><strong>No client orders in scope yet</strong><span>Once clients have orders on Active items, your profit shows up here.</span></div>`;
   }
-  const tot=x.inHand+x.toCollect;
-  const pc=v=>(v/tot*100).toFixed(2)+'%';
-  const lg=(c,l,v)=>`<span class="xp-lg"><i class="${c}"></i>${l} <b class="mono">${php(v)}</b></span>`;
   const full=x.P100>0.005?Math.round(x.P/x.P100*100):0, share=x.P>0.005?Math.round(x.inHand/x.P*100):0;
-  h+=`<div class="pf-top"><div><div class="xp-hero-label">Profit at current allocation</div><div class="pf-big mono ${x.P>=0?'kpi-pos':'kpi-neg'}">${php(x.P)}</div></div>
-      <div class="pf-arrow">·</div>
-      <div class="pf-top-note">That's ${full}% of the ${php(x.P100)} you'd make if every unit were allocated. About <strong>${share}%</strong> of it (${php(x.inHand)}) is already yours — the part the DPs cover. ${x.toCollect>0.005?`The other ${php(x.toCollect)} arrives when clients pay their balance at pickup. `:''}The rest of the original ${php(x.F)} float was never yours: it goes back to clients with the refunds on unallocated units.</div></div>`;
+  const allocPct=x.uOrd>0?Math.round(x.uAlloc/x.uOrd*100):0, returned=Math.max(0,x.F-x.fNow);
+  const box=(cls,label,val,sub)=>`<div class="eq-box ${cls}"><div class="eq-label">${label}</div><div class="eq-val mono">${val}</div><div class="eq-sub">${sub}</div></div>`;
+  const op=t=>`<div class="eq-op">${t}</div>`;
+  h+=`<div class="eq-chain">
+    ${box('','Original float',php(x.F),'if every unit were allocated')}${op('−')}
+    ${box('eq-neg','Goes back to clients',php(returned),'refunds on unallocated units')}${op('=')}
+    ${box('eq-pos','Yours now',php(x.fNow),share+'% of your profit')}${op('+')}
+    ${box('eq-gold','Comes in at pickup',php(x.toCollect),(x.P>0.005?100-share:0)+'% of your profit')}${op('=')}
+    ${box('eq-total','Your profit',php(x.P),full+'% of the '+php(x.P100)+' full-allocation profit')}
+  </div>`;
+  let rule;
+  if(x.P<=0.005) rule='Nothing is allocated to clients yet, so every DP would be refunded and there is no profit to show.';
+  else if(share>=99.5) rule=`Allocation is <strong>${allocPct}%</strong> — small enough that clients’ DPs already cover every allocated unit, so <strong>all of your profit is already in hand</strong>. The rest of the float goes back to clients.`;
+  else rule=`Allocation is <strong>${allocPct}%</strong> — allocated orders have paid ${share}% of their price, so <strong>${share}% of your profit is already yours</strong> and the other ${100-share}% arrives when clients collect and pay their balance.`;
+  h+=`<div class="eq-rule">${rule}<br><span class="td-dim">Rule of thumb: your float is never more than your profit — it’s about 30% of it when allocated orders are filled in full, and up to 100% when allocation is under ~30% and spread evenly.</span></div>`;
+  const tot=x.inHand+x.toCollect;
   if(tot>0.005){
-    h+=`<div class="xp-bar" style="margin-top:10px">${x.inHand>0.005?`<div class="xp-seg xp-free" style="width:${pc(x.inHand)}" title="In your hands now: ${php(x.inHand)}"></div>`:''}${x.toCollect>0.005?`<div class="xp-seg xp-bal" style="width:${pc(x.toCollect)}" title="Still to collect at pickup: ${php(x.toCollect)}"></div>`:''}</div>
-    <div class="xp-legend">${lg('xp-free','Already yours (float at current allocation)',x.inHand)}${x.toCollect>0.005?lg('xp-bal','Still to collect at pickup',x.toCollect):''}</div>`;
+    const pc=v=>(v/tot*100).toFixed(2)+'%';
+    h+=`<div class="xp-bar" style="margin-top:10px">${x.inHand>0.005?`<div class="xp-seg xp-free" style="width:${pc(x.inHand)}" title="Yours now: ${php(x.inHand)}"></div>`:''}${x.toCollect>0.005?`<div class="xp-seg xp-bal" style="width:${pc(x.toCollect)}" title="At pickup: ${php(x.toCollect)}"></div>`:''}</div>`;
   }
+  return h;
+}
+function renderStockGlance(x) {
+  if(!x.hasFunded) return '';
+  const covered=Math.min(Math.max(0,x.P),x.Cs), pocket=Math.max(0,x.Cs-x.P);
+  const tile=(cls,label,val,sub)=>`<div class="eq-box ${cls}"><div class="eq-label">${label}</div><div class="eq-val mono">${val}</div><div class="eq-sub">${sub}</div></div>`;
+  let h=`<div class="fcb-section-head">Store Stock Bought With Float<span class="fcb-section-sub">What it costs you once allocation is out</span></div>
+  <div class="eq-chain">
+    ${tile('',`Stock you’ll get`,x.stockUnits+' units','cost '+php(x.Cs)+' · worth ~'+php(x.V)+' at SRP')}
+    ${tile('eq-pos','Your pre-order profit pays',php(covered),'of the '+php(x.Cs)+' stock cost')}
+    ${tile(pocket>0.005?'eq-neg':'eq-pos','Left to pay from your pocket',php(pocket),pocket>0.005?'the profit can’t cover it':'nothing — fully covered')}
+    ${tile(x.outOfPocket>0.005?'eq-gold':'eq-pos','Cash to front before pickups',php(x.outOfPocket),x.outOfPocket>0.005?(pocket>0.005?'part of this is a real cost':'temporary — comes back at pickup'):'float covers it')}
+  </div>
+  <div class="eq-rule">${pocket>0.005
+    ?`Your pre-order profit (${php(x.P)}) can’t fully pay for the stock (${php(x.Cs)}), so <strong>${php(pocket)}</strong> really comes from the store.`
+    :`Your pre-order profit pays for all the stock and you keep <strong>${php(x.P-x.Cs)}</strong> in cash profit. The stock then sells for about ${php(x.V)} at SRP, adding roughly ${php(x.V-x.Cs)} more.`}</div>`;
   return h;
 }
 const SCENARIO_PCTS=[100,75,50,30,20,10,5];
@@ -1537,7 +1580,7 @@ function renderFloatBreakdown() {
   const availCls=pool.available>=0?'kpi-pos':'kpi-neg';
   const sgn=n=>Math.abs(n)<0.005?php(0):(n>=0?'+':'−')+php(Math.abs(n));
 
-  let html=renderProfitTracker(x)+renderScenarioTable(x)+`<div class="fcb-section-head">Floating Capital Pool<span class="fcb-section-sub">Active items · at the current allocation · money you don’t own goes back to clients with the refunds on unallocated units</span></div>
+  let html=`<div class="fcb-section-head">Floating Capital Pool<span class="fcb-section-sub">Active items · at the current allocation · money you don’t own goes back to clients with the refunds on unallocated units</span></div>
   <div class="fcb-summary">
     <div class="fcb-row"><span class="fcb-label">Floating capital if every unit were allocated</span><span class="fcb-val td-dim">${php(pool.totalFloat)}</span></div>
     <div class="fcb-row fcb-sub"><span class="fcb-label">Less: returned to clients with refunds on unallocated units</span><span class="fcb-val ${pool.totalFloat-pool.floatNow>0.005?'kpi-neg':''}">${sgn(pool.floatNow-pool.totalFloat)}</span></div>
@@ -1626,6 +1669,10 @@ function renderFloatBreakdown() {
         <td class="td-r">${pill(settle.totals.clientDiff,'You Owe Clients','Clients Owe You',false)}</td>
       </tr></tfoot></table></div>`;
   }
+  const tgl=(flag,a,label)=>`<button type="button" class="lt-btn${flag?' active':''}" data-a="${a}">${flag?'▾':'▸'} ${label}</button>`;
+  html=renderProfitTracker(x)+renderStockGlance(x)
+    +`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 10px">${tgl(ui.showWhatIf,'toggle-whatif','What if allocation is…')}${tgl(ui.showFloatMath,'toggle-floatmath','Show the math &amp; order details')}</div>`
+    +(ui.showWhatIf?renderScenarioTable(x):'')+(ui.showFloatMath?html:'');
   area.innerHTML=html;
 }
 
@@ -3926,6 +3973,8 @@ document.addEventListener('click',function(e){
     case 'export-client-report': exportClientReport(); break;
     case 'toggle-show-hidden': ui.showHiddenItems=!ui.showHiddenItems; renderLedger(); break;
     case 'reset-item-status':  resetAllItemStatus(); break;
+    case 'toggle-whatif':      ui.showWhatIf=!ui.showWhatIf; renderFloatBreakdown(); break;
+    case 'toggle-floatmath':   ui.showFloatMath=!ui.showFloatMath; renderFloatBreakdown(); break;
     case 'set-scenario-mode':  ui.scenarioMode=(btn.dataset.mode==='even'?'even':'whole'); renderFloatBreakdown(); break;
     case 'resume-only':        resumeOnlyItem(id); break;
     case 'download-all-receipts': generateAllReceipts(); break;
