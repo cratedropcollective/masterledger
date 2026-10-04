@@ -832,10 +832,17 @@ function orderFC(order) {
   const item=getItem(order.itemId); if(!item) return 0;
   return (Number(order.amountPaid)||0)-(Number(item.costPrice)||0)*0.30*(Number(order.qtyOrdered)||0);
 }
+function amtAllocCell(order,fin) {
+  return order.storeInventory
+    ? `<td class="td-r mono td-dim" title="In-store order — valued at cost price, not SRP">${php(fin.srpValueAlloc)}<div style="font-size:10px;line-height:1.2">at cost</div></td>`
+    : `<td class="td-r mono td-dim">${php(fin.srpValueAlloc)}</td>`;
+}
 function orderFin(order) {
   const item=getItem(order.itemId); const aq=allocQty(order);
   const vPrice=item?dpPrice(order):0; const valueAlloc=aq*vPrice;
-  const srpValueAlloc=item?aq*(Number(item.srp)||0):0;   /* "Amount Allocated" — always at SRP, regardless of store flag */
+  /* "Amount Allocated" = allocated qty × list price: SRP for client orders, COST for in-store orders (what the store actually pays).
+     Field keeps its old name; it's the list-price value, ignoring any per-order price override. */
+  const srpValueAlloc=item?aq*(order.storeInventory?(Number(item.costPrice)||0):(Number(item.srp)||0)):0;
   const paid=Number(order.amountPaid)||0; const diff=paid-valueAlloc;
   const fc=orderFC(order);
   return {aq,valueAlloc,srpValueAlloc,paid,diff,fc,isRefund:diff>=0,isZero:Math.abs(diff)<0.005};
@@ -1313,12 +1320,13 @@ function storeExposureData(aqOf, wholeFrac) {
   const act=state.orders.filter(o=>isOrderInScope(o) && getItem(o.itemId));
   let F=0,K=0,Kback=0,DRc=0,SM=0,P=0,P100=0,Cs=0,V=0,stockUnits=0;
   let owned=0,collect=0,owned100=0,paidSum=0,bal100=0,uOrd=0,uAlloc=0;
-  const byClient={}, byItem={};
+  const byClient={}, byItem={}, fd={};
   act.forEach(o=>{
     const item=getItem(o.itemId), cost=Number(item.costPrice)||0, qty=Number(o.qtyOrdered)||0, aq=aqOf(o), paid=Number(o.amountPaid)||0;
     (byItem[o.itemId]=byItem[o.itemId]||[]).push(o);
     if(o.storeInventory){
-      if(o.fundedByFloat){ K+=paid; Cs+=aq*cost; V+=aq*(Number(item.srp)||0); stockUnits+=aq; }
+      if(o.fundedByFloat){ K+=paid; Cs+=aq*cost; V+=aq*(Number(item.srp)||0); stockUnits+=aq;
+        const d=(fd[o.itemId]=fd[o.itemId]||{item,qty:0,aq:0,K:0,Cs:0,V:0,Kback:0,SM:0,orders:0}); d.qty+=qty; d.aq+=aq; d.K+=paid; d.Cs+=aq*cost; d.V+=aq*(Number(item.srp)||0); d.orders++; }
       return;
     }
     const price=dpPrice(o), Va=aq*price, prof=aq*(price-cost), share=Va>0.005?Math.min(1,paid/Va):0;
@@ -1344,14 +1352,15 @@ function storeExposureData(aqOf, wholeFrac) {
       const k=o.storeInventory?(o.fundedByFloat?'fund':'pocket'):'client';
       g[k]+=cost*0.30*(Number(o.qtyOrdered)||0)-cost*aqOf(o);
     });
-    const total=g.client+g.fund+g.pocket;
+    const total=g.client+g.fund+g.pocket; let kbi=0, smi=0;
     if(total>0.005){
       const pos=Math.max(0,g.client)+Math.max(0,g.fund)+Math.max(0,g.pocket);
-      if(pos>0){ DRc+=total*Math.max(0,g.client)/pos; Kback+=total*Math.max(0,g.fund)/pos; }
+      if(pos>0){ DRc+=total*Math.max(0,g.client)/pos; kbi=total*Math.max(0,g.fund)/pos; Kback+=kbi; }
     } else if(total<-0.005){
       const neg=Math.max(0,-g.client)+Math.max(0,-g.fund)+Math.max(0,-g.pocket);
-      if(neg>0) SM+=(-total)*Math.max(0,-g.fund)/neg;
+      if(neg>0){ smi=(-total)*Math.max(0,-g.fund)/neg; SM+=smi; }
     }
+    if(fd[id]){ fd[id].Kback=kbi; fd[id].SM=smi; }
   });
   /* fNow = the floating capital that is really YOURS at this allocation (see "owned" above). The rest of the original
      float (F − fNow) is not yours: it goes back to clients inside the refunds on unallocated units. */
@@ -1366,7 +1375,7 @@ function storeExposureData(aqOf, wholeFrac) {
   [['stuck','Stays in store stock',Math.max(0,stuck)],['bal','Stock balance due',Math.max(0,SM)]].forEach(([key,label,amt])=>{
     const take=Math.min(amt,remain); remain-=take; over+=amt-take; segs.push({key,label,amt:take});
   });
-  return {uOrd,uAlloc,P,P100,Cs,V,stockUnits,F,fNow,inHand,toCollect,K,Kback,DRc,Rg,balances,SM,floatAfter,outOfPocket,hasFunded,stuck,segs,free:remain,over,
+  return {uOrd,uAlloc,P,P100,Cs,V,stockUnits,F,fNow,inHand,toCollect,K,Kback,DRc,Rg,balances,SM,floatAfter,outOfPocket,hasFunded,stuck,segs,free:remain,over,stockItems:Object.values(fd).sort((a,b)=>b.Cs-a.Cs),
           leftOut:state.items.filter(i=>itemStatus(i)!=='active'&&itemOrders(i.id).length).length};
 }
 
@@ -1466,17 +1475,40 @@ function renderProfitTracker(x) {
   }
   return h;
 }
+function renderStockTable(x) {
+  if(!x.stockItems.length) return '';
+  let rows='', tAq=0,tQty=0,tCs=0,tK=0,tKb=0,tSM=0,tV=0;
+  x.stockItems.forEach(d=>{
+    const it=d.item, cost=Number(it.costPrice)||0, srp=Number(it.srp)||0, profit=d.V-d.Cs;
+    tAq+=d.aq; tQty+=d.qty; tCs+=d.Cs; tK+=d.K; tKb+=d.Kback; tSM+=d.SM; tV+=d.V;
+    rows+=`<tr>
+      <td><div class="td-bold">${esc(it.name)}</div><div class="td-dim" style="font-size:11px">${it.eta?'ETA '+esc(it.eta)+' · ':''}${d.orders} order${d.orders===1?'':'s'}</div></td>
+      <td class="td-c mono">${d.qty} → <strong>${d.aq}</strong></td>
+      <td class="td-r mono">${php(cost)}</td>
+      <td class="td-r mono td-bold">${php(d.Cs)}</td>
+      <td class="td-r mono">${php(d.K)}${d.Kback>0.005?`<div class="kpi-pos" style="font-size:10.5px">${php(d.Kback)} comes back</div>`:''}</td>
+      <td class="td-r mono ${d.SM>0.005?'kpi-neg':'td-dim'}">${d.SM>0.005?php(d.SM):'—'}</td>
+      <td class="td-r mono">${php(srp)}<div class="td-dim" style="font-size:10.5px">${php(d.V)} total</div></td>
+      <td class="td-r mono ${profit>=0?'kpi-pos':'kpi-neg'}">${php(profit)}</td>
+    </tr>`;
+  });
+  return `<div class="tbl-wrap" style="margin-top:14px"><table class="item-tbl"><thead><tr>
+    <th>Product</th><th class="c" title="Quantity ordered → quantity allocated">Ordered → Allocated</th><th class="r">Cost / unit</th><th class="r" title="Allocated qty × cost price — the real price of this stock">Allocated cost</th><th class="r" title="DP you paid for it out of floating capital">DP paid (float)</th><th class="r" title="Balance you still owe the distributor for the allocated units">Still due to distributor</th><th class="r">Sells for (SRP)</th><th class="r" title="Total SRP value of allocated units minus their cost">Profit when sold</th>
+  </tr></thead><tbody>${rows}</tbody>
+  <tfoot><tr class="fcb-totals-row"><td class="td-bold">Total</td><td class="td-c mono">${tQty} → <strong>${tAq}</strong></td><td></td><td class="td-r mono td-bold">${php(tCs)}</td><td class="td-r mono">${php(tK)}${tKb>0.005?`<div class="kpi-pos" style="font-size:10.5px">${php(tKb)} comes back</div>`:''}</td><td class="td-r mono">${tSM>0.005?php(tSM):'—'}</td><td class="td-r mono">${php(tV)}</td><td class="td-r mono ${tV-tCs>=0?'kpi-pos':'kpi-neg'}">${php(tV-tCs)}</td></tr></tfoot></table></div>`;
+}
 function renderStockGlance(x) {
   if(!x.hasFunded) return '';
   const covered=Math.min(Math.max(0,x.P),x.Cs), pocket=Math.max(0,x.Cs-x.P);
   const tile=(cls,label,val,sub)=>`<div class="eq-box ${cls}"><div class="eq-label">${label}</div><div class="eq-val mono">${val}</div><div class="eq-sub">${sub}</div></div>`;
   let h=`<div class="fcb-section-head">Store Stock Bought With Float<span class="fcb-section-sub">What it costs you once allocation is out</span></div>
   <div class="eq-chain">
-    ${tile('',`Stock you’ll get`,x.stockUnits+' units','cost '+php(x.Cs)+' · worth ~'+php(x.V)+' at SRP')}
+    ${tile('',`Stock you’ll get`,x.stockUnits+' units',x.stockItems.length+' product'+(x.stockItems.length===1?'':'s')+' · cost '+php(x.Cs)+' · worth ~'+php(x.V)+' at SRP')}
     ${tile('eq-pos','Your pre-order profit pays',php(covered),'of the '+php(x.Cs)+' stock cost')}
     ${tile(pocket>0.005?'eq-neg':'eq-pos','Left to pay from your pocket',php(pocket),pocket>0.005?'the profit can’t cover it':'nothing — fully covered')}
     ${tile(x.outOfPocket>0.005?'eq-gold':'eq-pos','Cash to front before pickups',php(x.outOfPocket),x.outOfPocket>0.005?(pocket>0.005?'part of this is a real cost':'temporary — comes back at pickup'):'float covers it')}
   </div>
+  ${renderStockTable(x)}
   <div class="eq-rule">${pocket>0.005
     ?`Your pre-order profit (${php(x.P)}) can’t fully pay for the stock (${php(x.Cs)}), so <strong>${php(pocket)}</strong> really comes from the store.`
     :`Your pre-order profit pays for all the stock and you keep <strong>${php(x.P-x.Cs)}</strong> in cash profit. The stock then sells for about ${php(x.V)} at SRP, adding roughly ${php(x.V-x.Cs)} more.`}</div>`;
@@ -2689,7 +2721,7 @@ function renderClientTab() {
           alloc:    `<td class="td-c">${allocInner}</td>`,
           paid:     isEdit?`<td class="td-r"><input id="ep_${esc(order.id)}" class="ci num sm" type="number" value="${esc(order.amountPaid)}" min="0" step="0.01">
               <input id="epx_${esc(order.id)}" class="ci num sm" style="margin-top:4px;display:block" type="number" value="${order.priceOverride!=null?esc(order.priceOverride):''}" min="0" step="0.01" placeholder="${item?php(order.storeInventory?item.costPrice:item.srp):'default'} price" title="Custom price/unit for this order — leave blank to use the item's normal price"></td>`:`<td class="td-r mono">${php(order.amountPaid)}</td>`,
-          amtAlloc: `<td class="td-r mono td-dim">${php(fin.srpValueAlloc)}</td>`,
+          amtAlloc: amtAllocCell(order,fin),
           float:    `<td class="td-r mono ${fcCls}">${php(fin.fc)}</td>`,
           refund:   `<td class="td-r">${refCell}</td>`,
           act:      isEdit
@@ -3003,7 +3035,7 @@ function renderItemTab(itemId) {
         <td class="td-c">${allocInner}</td>
         <td class="td-r"><input id="ep_${esc(order.id)}" class="ci num sm" type="number" value="${esc(order.amountPaid)}" min="0" step="0.01">
           <input id="epx_${esc(order.id)}" class="ci num sm" style="margin-top:4px;display:block" type="number" value="${order.priceOverride!=null?esc(order.priceOverride):''}" min="0" step="0.01" placeholder="${php(order.storeInventory?item.costPrice:item.srp)} price" title="Custom price/unit for this order — leave blank to use the item's normal price"></td>
-        <td class="td-r mono td-dim">${php(fin.srpValueAlloc)}</td>
+        ${amtAllocCell(order,fin)}
         <td class="td-r">${refCell}</td>
         <td class="td-r mono ${fcCls}">${php(fin.fc)}</td>
         <td class="td-r" style="white-space:nowrap"><button type="button" class="icon-btn save" data-a="save-order" data-id="${esc(order.id)}">✓</button> <button type="button" class="icon-btn" data-a="cancel-order">✕</button></td>
@@ -3014,7 +3046,7 @@ function renderItemTab(itemId) {
         <td class="td-r mono">${esc(order.qtyOrdered)}</td>
         <td class="td-c">${allocInner}</td>
         <td class="td-r mono">${php(order.amountPaid)}</td>
-        <td class="td-r mono td-dim">${php(fin.srpValueAlloc)}</td>
+        ${amtAllocCell(order,fin)}
         <td class="td-r">${refCell}</td>
         <td class="td-r mono ${fcCls}">${php(fin.fc)}</td>
         <td class="td-r" style="white-space:nowrap"><button type="button" class="icon-btn" data-a="edit-order" data-id="${esc(order.id)}" title="Edit">✏</button> <button type="button" class="icon-btn del" data-a="del-order" data-id="${esc(order.id)}" title="Delete">✕</button></td>
@@ -3502,7 +3534,7 @@ function exportToExcel(){
       ['Distributor Actual',item.actualAllocOverride?actual:''],// row9 -> B10
       ['Delta vs Calculated',0],                                // row10 -> B11 (formula)
       [],
-      ['Client','Qty Ordered','DP / Unit (30%)','Required DP','Allocation %','Override?','Raw Allocated (Unrounded)','Qty Allocated (Floored)','Amount Paid (DP)','Amount Allocated (SRP)','Store Inventory?','Value of Allocated Goods','Floating Capital'],
+      ['Client','Qty Ordered','DP / Unit (30%)','Required DP','Allocation %','Override?','Raw Allocated (Unrounded)','Qty Allocated (Floored)','Amount Paid (DP)','Amount Allocated (SRP; store orders at cost)','Store Inventory?','Value of Allocated Goods','Floating Capital'],
     ];
     const detailStartRow=data.length;
     orders.forEach(order=>{
@@ -3542,7 +3574,7 @@ function exportToExcel(){
         setFormulaCell(ws,r,IT.qtyAlloc,`FLOOR(${cellRef(r,IT.rawAlloc)},1)`,fin.aq);
       }
       const qtyAllocRef=cellRef(r,IT.qtyAlloc), paidRef=cellRef(r,IT.paid);
-      setFormulaCell(ws,r,IT.amtAlloc,`${qtyAllocRef}*${SRP_ABS}`,fin.srpValueAlloc);
+      setFormulaCell(ws,r,IT.amtAlloc,`IF(${storeRef}="Yes",${qtyAllocRef}*${COST_ABS},${qtyAllocRef}*${SRP_ABS})`,fin.srpValueAlloc);
       setFormulaCell(ws,r,IT.valueAlloc,`IF(${storeRef}="Yes",${qtyAllocRef}*${COST_ABS},${qtyAllocRef}*${SRP_ABS})`,fin.valueAlloc);
       setFormulaCell(ws,r,IT.floatCap,`${paidRef}-(${qtyRef}*${COST_ABS}*0.3)`,fin.fc);
       rowMap[order.id]=r;
@@ -3580,7 +3612,7 @@ function exportToExcel(){
   state.items.forEach(item=>{ allocRefRowForItem[item.id]=clientData.length; clientData.push([item.name,0]); });
   clientData.push([]);
   const headerRow=clientData.length;
-  clientData.push(['Client','Item / SKU','ETA','Qty Ordered','SRP','DP / Unit (30%)','Required DP','Allocation %','Override?','Raw Allocated (Unrounded)','Qty Allocated (Floored)','Amount Paid (DP)','Amount Allocated (SRP)','Cost Price','Store Inventory?','Value of Allocated Goods','Floating Capital','Refund / Balance','Client Message (Copy & Send)']);
+  clientData.push(['Client','Item / SKU','ETA','Qty Ordered','SRP','DP / Unit (30%)','Required DP','Allocation %','Override?','Raw Allocated (Unrounded)','Qty Allocated (Floored)','Amount Paid (DP)','Amount Allocated (SRP; store orders at cost)','Cost Price','Store Inventory?','Value of Allocated Goods','Floating Capital','Refund / Balance','Client Message (Copy & Send)']);
 
   const clientBlocks=[];
   clientNames(true).forEach(name=>{
@@ -3645,7 +3677,7 @@ function exportToExcel(){
       }
 
       const qtyAllocRef=cellRef(R,CO.qtyAlloc), valueAllocRef=cellRef(R,CO.valueAlloc);
-      setFormulaCell(wsClient,R,CO.amtAlloc,`${qtyAllocRef}*${srpRef}`,fin.srpValueAlloc);
+      setFormulaCell(wsClient,R,CO.amtAlloc,`IF(${storeRef}="Yes",${qtyAllocRef}*${costRef},${qtyAllocRef}*${srpRef})`,fin.srpValueAlloc);
       setFormulaCell(wsClient,R,CO.valueAlloc,`IF(${storeRef}="Yes",${qtyAllocRef}*${costRef},${qtyAllocRef}*${srpRef})`,fin.valueAlloc);
       setFormulaCell(wsClient,R,CO.floatCap,`${paidRef}-(${qtyRef}*${costRef}*0.3)`,fin.fc);
       setTextFormulaCell(wsClient,R,CO.refund,refundBalanceFormula(paidRef,valueAllocRef),fin.isZero?'Settled':fin.isRefund?`Refund ₱${fin.diff.toFixed(2)}`:`Balance ₱${Math.abs(fin.diff).toFixed(2)}`);
